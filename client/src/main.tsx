@@ -1,3 +1,4 @@
+import { ClerkProvider } from "@clerk/react";
 import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -5,7 +6,6 @@ import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
-import { getLoginUrl } from "./const";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -18,8 +18,11 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   if (!isUnauthorized) return;
 
-  window.location.href = getLoginUrl();
+  // With Clerk, we can let the UI handle the unauthenticated state
+  // or use Clerk's redirectToSignIn if needed.
+  console.warn("Unauthorized API call detected");
 };
+
 
 queryClient.getQueryCache().subscribe(event => {
   if (event.type === "updated" && event.action.type === "error") {
@@ -53,9 +56,14 @@ const trpcClient = trpc.createClient({
 });
 
 createRoot(document.getElementById("root")!).render(
-  <trpc.Provider client={trpcClient} queryClient={queryClient}>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </trpc.Provider>
+  // @ts-ignore - AGENTS.md rule: Do not manually pass publishableKey as a prop to <ClerkProvider>
+  <ClerkProvider afterSignOutUrl="/">
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </trpc.Provider>
+  </ClerkProvider>
 );
+

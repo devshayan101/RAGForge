@@ -34,7 +34,7 @@ mindmap
         Document Processing (embeddings)
         Queue Management (BullMQ/Redis)
         Storage Service (S3/MinIO)
-        Authentication (OAuth/Sessions)
+        Authentication (Clerk SDK)
       Core Logic
         Vector Search (Cosine Similarity)
         Ingestion Pipeline

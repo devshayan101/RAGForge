@@ -1,6 +1,6 @@
+import { useUser } from "@clerk/react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,7 +10,8 @@ import { useLocation } from "wouter";
 import { toast } from "sonner";
 
 export default function ProjectsPage() {
-  const { user } = useAuth();
+  const { user } = useUser();
+
   const [, setLocation] = useLocation();
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectDesc, setNewProjectDesc] = useState("");

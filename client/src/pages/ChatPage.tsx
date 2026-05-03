@@ -1,6 +1,6 @@
+import { useUser } from "@clerk/react";
 import { useState, useRef, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Send, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
+
 
 interface Message {
   id: string;
@@ -22,7 +23,8 @@ interface ChatPageProps {
 }
 
 export default function ChatPage({ versionId }: ChatPageProps) {
-  const { user } = useAuth();
+  const { user } = useUser();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);

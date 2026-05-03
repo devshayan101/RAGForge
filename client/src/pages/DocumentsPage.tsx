@@ -1,6 +1,6 @@
+import { useUser } from "@clerk/react";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Trash2, Loader2, FileText, AlertCircle } from "lucide-react";
@@ -12,7 +12,8 @@ interface DocumentsPageProps {
 }
 
 export default function DocumentsPage({ versionId }: DocumentsPageProps) {
-  const { user } = useAuth();
+  const { user } = useUser();
+
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 

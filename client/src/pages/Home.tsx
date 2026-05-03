@@ -1,23 +1,23 @@
-import { useAuth } from "@/_core/hooks/useAuth";
+import { Show, SignInButton, useAuth } from "@clerk/react";
 import { Button } from "@/components/ui/button";
-import { getLoginUrl } from "@/const";
 import { useLocation } from "wouter";
 import { useEffect } from "react";
 import { Sparkles, Zap, Shield, BarChart3 } from "lucide-react";
 
 export default function Home() {
-  const { user, isAuthenticated } = useAuth();
+  const { isSignedIn } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isSignedIn) {
       setLocation("/dashboard");
     }
-  }, [isAuthenticated, setLocation]);
+  }, [isSignedIn, setLocation]);
 
-  if (isAuthenticated) {
+  if (isSignedIn) {
     return null;
   }
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
@@ -28,9 +28,10 @@ export default function Home() {
             <Sparkles className="w-8 h-8 text-blue-400" />
             <span className="text-2xl font-bold">RAGForge</span>
           </div>
-          <Button asChild>
-            <a href={getLoginUrl()}>Sign In</a>
-          </Button>
+          <SignInButton mode="modal">
+            <Button>Sign In</Button>
+          </SignInButton>
+
         </div>
       </nav>
 
@@ -42,9 +43,12 @@ export default function Home() {
         <p className="text-xl text-slate-300 mb-8 max-w-2xl mx-auto">
           Build, manage, and deploy sophisticated Retrieval-Augmented Generation pipelines with elegant simplicity.
         </p>
-        <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
-          <a href={getLoginUrl()}>Get Started Free</a>
-        </Button>
+        <SignInButton mode="modal">
+          <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+            Get Started Free
+          </Button>
+        </SignInButton>
+
       </section>
 
       {/* Features Section */}
@@ -76,9 +80,12 @@ export default function Home() {
       {/* CTA Section */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
         <h2 className="text-3xl font-bold mb-6">Ready to build your RAG pipeline?</h2>
-        <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
-          <a href={getLoginUrl()}>Start Free Today</a>
-        </Button>
+        <SignInButton mode="modal">
+          <Button size="lg" className="bg-blue-600 hover:bg-blue-700">
+            Start Free Today
+          </Button>
+        </SignInButton>
+
       </section>
     </div>
   );
