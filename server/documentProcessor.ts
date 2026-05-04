@@ -20,7 +20,9 @@ export async function extractTextFromFile(
     case "application/pdf":
     case "pdf": {
       try {
-        const data = await pdfParse(fileBuffer);
+        const { PDFParse } = pdfParse;
+        const parser = new PDFParse({ data: fileBuffer });
+        const data = await parser.getText();
         return data.text || "";
       } catch (error) {
         console.error("Error parsing PDF:", error);
