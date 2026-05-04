@@ -52,10 +52,10 @@ export async function getPresignedUploadUrl(
     };
   }
 
-  const forgeUrl = ENV.forgeApiUrl;
-  const forgeKey = ENV.forgeApiKey;
+  const geminiUrl = ENV.geminiApiUrl;
+  const geminiKey = ENV.geminiApiKey;
 
-  if (!forgeUrl || !forgeKey) {
+  if (!geminiUrl || !geminiKey) {
     // Local storage fallback
     return {
       uploadUrl: `/manus-storage/${fileKey}`,
@@ -64,13 +64,13 @@ export async function getPresignedUploadUrl(
     };
   }
 
-  // Request presigned PUT URL from Forge
-  const presignUrl = new URL("v1/storage/presign/put", forgeUrl.replace(/\/+$/, "") + "/");
+  // Request presigned PUT URL from Gemini
+  const presignUrl = new URL("v1/storage/presign/put", geminiUrl.replace(/\/+$/, "") + "/");
   presignUrl.searchParams.set("path", fileKey);
   presignUrl.searchParams.set("expiresIn", "3600"); // 1 hour expiry
 
   const presignResp = await fetch(presignUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` },
+    headers: { Authorization: `Bearer ${geminiKey}` },
   });
 
   if (!presignResp.ok) {
@@ -80,7 +80,7 @@ export async function getPresignedUploadUrl(
 
   const { url: uploadUrl } = (await presignResp.json()) as { url: string };
   if (!uploadUrl) {
-    throw new Error("Forge returned empty presigned URL");
+    throw new Error("Gemini returned empty presigned URL");
   }
 
   return {

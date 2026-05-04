@@ -11,7 +11,7 @@ export function registerStorageProxy(app: Express) {
       return;
     }
 
-    if (!ENV.forgeApiUrl || !ENV.forgeApiKey) {
+    if (!ENV.geminiApiUrl || !ENV.geminiApiKey) {
       // Local storage fallback
       const uploadDir = path.join(process.cwd(), "uploads");
       const filePath = path.join(uploadDir, key);
@@ -25,24 +25,24 @@ export function registerStorageProxy(app: Express) {
     }
 
     try {
-      const forgeUrl = new URL(
+      const geminiUrl = new URL(
         "v1/storage/presign/get",
-        ENV.forgeApiUrl.replace(/\/+$/, "") + "/",
+        ENV.geminiApiUrl.replace(/\/+$/, "") + "/",
       );
-      forgeUrl.searchParams.set("path", key);
+      geminiUrl.searchParams.set("path", key);
 
-      const forgeResp = await fetch(forgeUrl, {
-        headers: { Authorization: `Bearer ${ENV.forgeApiKey}` },
+      const geminiResp = await fetch(geminiUrl, {
+        headers: { Authorization: `Bearer ${ENV.geminiApiKey}` },
       });
 
-      if (!forgeResp.ok) {
-        const body = await forgeResp.text().catch(() => "");
-        console.error(`[StorageProxy] forge error: ${forgeResp.status} ${body}`);
+      if (!geminiResp.ok) {
+        const body = await geminiResp.text().catch(() => "");
+        console.error(`[StorageProxy] gemini error: ${geminiResp.status} ${body}`);
         res.status(502).send("Storage backend error");
         return;
       }
 
-      const { url } = (await forgeResp.json()) as { url: string };
+      const { url } = (await geminiResp.json()) as { url: string };
       if (!url) {
         res.status(502).send("Empty signed URL from backend");
         return;
@@ -64,7 +64,7 @@ export function registerStorageProxy(app: Express) {
       return;
     }
 
-    if (ENV.forgeApiUrl && ENV.forgeApiKey) {
+    if (ENV.geminiApiUrl && ENV.geminiApiKey) {
       // In Manus environment, this should probably not be used directly
       // but we'll allow it or just proxy it if needed.
       // For now, we only care about local fallback.

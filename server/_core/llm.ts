@@ -66,6 +66,7 @@ export type InvokeParams = {
   output_schema?: OutputSchema;
   responseFormat?: ResponseFormat;
   response_format?: ResponseFormat;
+  model?: string;
 };
 
 export type ToolCall = {
@@ -209,14 +210,17 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+const resolveBaseUrl = () =>
+  ENV.geminiApiUrl && ENV.geminiApiUrl.trim().length > 0
+    ? ENV.geminiApiUrl.replace(/\/$/, "")
+    : "https://generativelanguage.googleapis.com";
+
+const resolveChatUrl = () => `${resolveBaseUrl()}/v1/chat/completions`;
+const resolveEmbedUrl = () => `${resolveBaseUrl()}/v1/embeddings`;
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("BUILT_IN_FORGE_API_KEY is not configured. Please set it in your .env file.");
+  if (!ENV.geminiApiKey) {
+    throw new Error("GEMINI_API_KEY is not configured. Please set it in your .env file.");
   }
 };
 
@@ -280,7 +284,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: params.model || "gemma-2-9b-it",
     messages: messages.map(normalizeMessage),
   };
 
@@ -312,7 +316,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(resolveChatUrl(), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -329,4 +333,28 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   return (await response.json()) as InvokeResult;
+}
+
+export async function embedTexts(texts: string[], model = "text-embedding-004"): Promise<number[][]> {
+  assertApiKey();
+
+  const response = await fetch(resolveEmbedUrl(), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${ENV.geminiApiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      input: texts,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
+  }
+
+  const json = await response.json();
+  return json.data.map((item: any) => item.embedding);
 }

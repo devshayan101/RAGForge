@@ -22,15 +22,15 @@ if (ENV.s3AccessKeyId && ENV.s3SecretAccessKey && ENV.s3Bucket) {
   });
 }
 
-function getForgeConfig() {
-  const forgeUrl = ENV.forgeApiUrl;
-  const forgeKey = ENV.forgeApiKey;
+function getGeminiConfig() {
+  const geminiUrl = ENV.geminiApiUrl;
+  const geminiKey = ENV.geminiApiKey;
 
-  if (!forgeUrl || !forgeKey) {
+  if (!geminiUrl || !geminiKey) {
     return null;
   }
 
-  return { forgeUrl: forgeUrl.replace(/\/+$/, ""), forgeKey };
+  return { geminiUrl: geminiUrl.replace(/\/+$/, ""), geminiKey };
 }
 
 function normalizeKey(relKey: string): string {
@@ -61,7 +61,7 @@ export async function storagePut(
     return { key, url: `/manus-storage/${key}` };
   }
 
-  const config = getForgeConfig();
+  const config = getGeminiConfig();
 
   if (!config) {
     // Local storage fallback
@@ -78,14 +78,14 @@ export async function storagePut(
     return { key, url: `/manus-storage/${key}` };
   }
 
-  const { forgeUrl, forgeKey } = config;
+  const { geminiUrl, geminiKey } = config;
 
-  // 1. Get presigned PUT URL from Forge
-  const presignUrl = new URL("v1/storage/presign/put", forgeUrl + "/");
+  // 1. Get presigned PUT URL from Gemini
+  const presignUrl = new URL("v1/storage/presign/put", geminiUrl + "/");
   presignUrl.searchParams.set("path", key);
 
   const presignResp = await fetch(presignUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` },
+    headers: { Authorization: `Bearer ${geminiKey}` },
   });
 
   if (!presignResp.ok) {
@@ -131,20 +131,19 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
     return await getS3SignedUrl(s3Client, command, { expiresIn: 3600 });
   }
 
-  const config = getForgeConfig();
+  const config = getGeminiConfig();
   if (!config) {
     // Local storage fallback: return a relative URL that the storage proxy will handle
     return `/manus-storage/${key}`;
   }
 
-  const { forgeUrl, forgeKey } = config;
-  const key = normalizeKey(relKey);
+  const { geminiUrl, geminiKey } = config;
 
-  const getUrl = new URL("v1/storage/presign/get", forgeUrl + "/");
+  const getUrl = new URL("v1/storage/presign/get", geminiUrl + "/");
   getUrl.searchParams.set("path", key);
 
   const resp = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${forgeKey}` },
+    headers: { Authorization: `Bearer ${geminiKey}` },
   });
 
   if (!resp.ok) {

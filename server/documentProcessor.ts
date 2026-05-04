@@ -1,4 +1,4 @@
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM, embedTexts } from "./_core/llm";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
@@ -77,61 +77,10 @@ export function chunkText(
  */
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-
-  // Use LLM to generate embeddings
-  // This is a simplified version - in production you'd use a dedicated embedding model
-  const embeddings: number[][] = [];
-
-  for (const text of texts) {
-    // Call LLM to generate embedding (simplified - returns mock embedding)
-    const response = await invokeLLM({
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are an embedding generator. Generate a JSON array of 384 numbers between -1 and 1 representing the embedding of the following text. Return ONLY the JSON array, no other text.",
-        },
-        {
-          role: "user",
-          content: text.substring(0, 500), // Limit text length for embedding
-        },
-      ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "embedding",
-          strict: true,
-          schema: {
-            type: "object",
-            properties: {
-              embedding: {
-                type: "array",
-                items: { type: "number" },
-                description: "384-dimensional embedding vector",
-              },
-            },
-            required: ["embedding"],
-            additionalProperties: false,
-          },
-        },
-      },
-    });
-
-    try {
-      const content = response.choices[0]?.message.content;
-      if (typeof content === "string") {
-        const parsed = JSON.parse(content);
-        embeddings.push(parsed.embedding || Array(384).fill(0));
-      } else {
-        embeddings.push(Array(384).fill(0));
-      }
-    } catch (error) {
-      console.error("Failed to parse embedding response:", error);
-      embeddings.push(Array(384).fill(0));
-    }
-  }
-
-  return embeddings;
+  
+  // Use a real embedding model (Option 1: Google AI Studio)
+  // We use text-embedding-004 which is the standard dedicated model.
+  return await embedTexts(texts, "text-embedding-004");
 }
 
 /**
