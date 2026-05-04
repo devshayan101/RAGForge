@@ -561,7 +561,7 @@ export const appRouter = router({
         versionId: z.number(),
         message: z.string(),
       }))
-      .query(async ({ ctx, input }) => {
+      .mutation(async ({ ctx, input }) => {
         const version = await db.getPipelineVersionById(input.versionId);
         if (!version) {
           throw new TRPCError({ code: "NOT_FOUND" });

@@ -215,8 +215,21 @@ const resolveBaseUrl = () =>
     ? ENV.geminiApiUrl.replace(/\/$/, "")
     : "https://generativelanguage.googleapis.com";
 
-const resolveChatUrl = () => `${resolveBaseUrl()}/v1/chat/completions`;
-const resolveEmbedUrl = () => `${resolveBaseUrl()}/v1/embeddings`;
+const resolveChatUrl = () => {
+  const baseUrl = resolveBaseUrl();
+  if (baseUrl.includes("generativelanguage.googleapis.com")) {
+    return `${baseUrl}/v1beta/openai/chat/completions`;
+  }
+  return `${baseUrl}/v1/chat/completions`;
+};
+
+const resolveEmbedUrl = () => {
+  const baseUrl = resolveBaseUrl();
+  if (baseUrl.includes("generativelanguage.googleapis.com")) {
+    return `${baseUrl}/v1beta/openai/embeddings`;
+  }
+  return `${baseUrl}/v1/embeddings`;
+};
 
 const assertApiKey = () => {
   if (!ENV.geminiApiKey) {
@@ -300,10 +313,6 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -335,9 +344,40 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   return (await response.json()) as InvokeResult;
 }
 
-export async function embedTexts(texts: string[], model = "text-embedding-004"): Promise<number[][]> {
+export async function embedTexts(texts: string[], model = "gemini-embedding-2"): Promise<number[][]> {
   assertApiKey();
+  const baseUrl = resolveBaseUrl();
 
+  // Handle Google native API
+  if (baseUrl.includes("generativelanguage.googleapis.com")) {
+    const url = `${baseUrl}/v1beta/models/${model}:batchEmbedContents?key=${ENV.geminiApiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        requests: texts.map(text => ({
+          model: `models/${model}`,
+          content: { parts: [{ text }] },
+          output_dimensionality: 768, // Maintain compatibility with 768-dim vector expectations
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Google Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
+    }
+
+    const json = await response.json();
+    if (!json.embeddings) {
+      throw new Error(`Invalid Google embedding response: ${JSON.stringify(json)}`);
+    }
+    return json.embeddings.map((item: any) => item.values);
+  }
+
+  // Fallback for OpenAI-compatible proxies (Forge, Ollama, etc.)
   const response = await fetch(resolveEmbedUrl(), {
     method: "POST",
     headers: {

@@ -25,6 +25,7 @@ interface ChatPageProps {
 export default function ChatPage({ versionId }: ChatPageProps) {
   const { user } = useUser();
 
+  const chatMutation = trpc.chat.query.useMutation();
   const [messages, setMessages] = useState<Message[]>([]);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -63,22 +64,14 @@ export default function ChatPage({ versionId }: ChatPageProps) {
       };
       setMessages((prev) => [...prev, assistantMessage]);
 
-      // Call the API
-      // Note: We're using the direct fetch to /api/trpc/chat.query
-      // The backend expects { versionId, message }
-      const res = await fetch(`/api/trpc/chat.query`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          versionId,
-          message: query.trim(),
-        }),
+      // Call the API using tRPC
+      const response = await chatMutation.mutateAsync({
+        versionId,
+        message: query.trim(),
       });
 
-      if (!res.ok) throw new Error("Failed to fetch");
-      const data = await res.json();
-      const responseText = data.result.data.response;
-      const sources = data.result.data.sources;
+      const responseText = response.response;
+      const sources = response.sources;
 
       // Simulate streaming by revealing tokens one by one
       const tokens = responseText.split(" ");

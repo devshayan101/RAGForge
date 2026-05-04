@@ -79,8 +79,8 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
   
   // Use a real embedding model (Option 1: Google AI Studio)
-  // We use text-embedding-004 which is the standard dedicated model.
-  return await embedTexts(texts, "text-embedding-004");
+  // We use gemini-embedding-2 which is the current state-of-the-art model.
+  return await embedTexts(texts, "gemini-embedding-2");
 }
 
 /**
