@@ -142,3 +142,6 @@
 4. Monitor and optimize performance
 5. Add database indexes for large-scale queries
 6. Implement Graph RAG mode (optional)
+---------------------------------------------------------
+
+1. Document upload is configured to local. Change it to Cloudflare r2, or aws s3.

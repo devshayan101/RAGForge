@@ -4,6 +4,20 @@
 
 import { ENV } from "./_core/env";
 import crypto from "crypto";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+const s3Client = (ENV.s3AccessKeyId && ENV.s3SecretAccessKey && ENV.s3Bucket)
+  ? new S3Client({
+      region: ENV.s3Region,
+      credentials: {
+        accessKeyId: ENV.s3AccessKeyId,
+        secretAccessKey: ENV.s3SecretAccessKey,
+      },
+      endpoint: ENV.s3Endpoint || undefined,
+      forcePathStyle: !!ENV.s3Endpoint,
+    })
+  : null;
 
 export interface PresignedUploadUrl {
   uploadUrl: string;
@@ -20,13 +34,26 @@ export async function getPresignedUploadUrl(
   fileType: string,
   versionId: number
 ): Promise<PresignedUploadUrl> {
-  const forgeUrl = ENV.forgeApiUrl;
-  const forgeKey = ENV.forgeApiKey;
-
-  // Generate a unique key for the file
   const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
   const fileKey = `documents/v${versionId}/${hash}_${sanitizedFilename}`;
+
+  if (s3Client) {
+    const command = new PutObjectCommand({
+      Bucket: ENV.s3Bucket,
+      Key: fileKey,
+      ContentType: fileType,
+    });
+    const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    return {
+      uploadUrl,
+      fileKey,
+      expiresIn: 3600,
+    };
+  }
+
+  const forgeUrl = ENV.forgeApiUrl;
+  const forgeKey = ENV.forgeApiKey;
 
   if (!forgeUrl || !forgeKey) {
     // Local storage fallback

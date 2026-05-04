@@ -6,6 +6,21 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { ENV } from "./_core/env";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
+
+let s3Client: S3Client | null = null;
+if (ENV.s3AccessKeyId && ENV.s3SecretAccessKey && ENV.s3Bucket) {
+  s3Client = new S3Client({
+    region: ENV.s3Region,
+    credentials: {
+      accessKeyId: ENV.s3AccessKeyId,
+      secretAccessKey: ENV.s3SecretAccessKey,
+    },
+    endpoint: ENV.s3Endpoint || undefined,
+    forcePathStyle: !!ENV.s3Endpoint, // Often needed for R2/Minio
+  });
+}
 
 function getForgeConfig() {
   const forgeUrl = ENV.forgeApiUrl;
@@ -34,8 +49,19 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
 ): Promise<{ key: string; url: string }> {
-  const config = getForgeConfig();
   const key = appendHashSuffix(normalizeKey(relKey));
+
+  if (s3Client) {
+    await s3Client.send(new PutObjectCommand({
+      Bucket: ENV.s3Bucket,
+      Key: key,
+      Body: typeof data === "string" ? Buffer.from(data) : data,
+      ContentType: contentType,
+    }));
+    return { key, url: `/manus-storage/${key}` };
+  }
+
+  const config = getForgeConfig();
 
   if (!config) {
     // Local storage fallback
@@ -95,10 +121,20 @@ export async function storageGet(relKey: string): Promise<{ key: string; url: st
 }
 
 export async function storageGetSignedUrl(relKey: string): Promise<string> {
+  const key = normalizeKey(relKey);
+
+  if (s3Client) {
+    const command = new GetObjectCommand({
+      Bucket: ENV.s3Bucket,
+      Key: key,
+    });
+    return await getS3SignedUrl(s3Client, command, { expiresIn: 3600 });
+  }
+
   const config = getForgeConfig();
   if (!config) {
     // Local storage fallback: return a relative URL that the storage proxy will handle
-    return `/manus-storage/${normalizeKey(relKey)}`;
+    return `/manus-storage/${key}`;
   }
 
   const { forgeUrl, forgeKey } = config;
