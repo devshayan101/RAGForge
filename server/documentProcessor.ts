@@ -1,4 +1,8 @@
 import { invokeLLM } from "./_core/llm";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse");
+const mammoth = require("mammoth");
 
 /**
  * Extract text from different file types
@@ -16,7 +20,6 @@ export async function extractTextFromFile(
     case "application/pdf":
     case "pdf": {
       try {
-        const pdfParse = require("pdf-parse");
         const data = await pdfParse(fileBuffer);
         return data.text || "";
       } catch (error) {
@@ -28,7 +31,6 @@ export async function extractTextFromFile(
     case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
     case "docx": {
       try {
-        const mammoth = require("mammoth");
         const result = await mammoth.extractRawText({ buffer: fileBuffer });
         return result.value || "";
       } catch (error) {

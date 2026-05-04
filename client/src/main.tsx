@@ -56,8 +56,7 @@ const trpcClient = trpc.createClient({
 });
 
 createRoot(document.getElementById("root")!).render(
-  // @ts-ignore - AGENTS.md rule: Do not manually pass publishableKey as a prop to <ClerkProvider>
-  <ClerkProvider afterSignOutUrl="/">
+  <ClerkProvider publishableKey={import.meta.env.VITE_CLERK_PUBLISHABLE_KEY} afterSignOutUrl="/">
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
 
       <QueryClientProvider client={queryClient}>

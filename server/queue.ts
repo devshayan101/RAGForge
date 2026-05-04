@@ -2,6 +2,8 @@ import { Queue, Worker, Job } from "bullmq";
 import Redis from "ioredis";
 import { processDocument } from "./documentProcessor";
 import * as db from "./db";
+import fs from "fs/promises";
+import path from "path";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -64,13 +66,18 @@ export const ingestionWorker = connection ? new Worker(
       // Update status to processing
       await db.updateDocumentStatus(documentId, "processing");
       
-      // 1. Fetch file content (Assuming fileUrl is a key or accessible URL)
-      // In this scaffold, we might need to fetch from our storage proxy or directly from S3
-      // For now, let's assume we can fetch it.
-      const response = await fetch(fileUrl);
-      if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
-      const arrayBuffer = await response.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      // 1. Fetch file content
+      let buffer: Buffer;
+      if (fileUrl.startsWith("/manus-storage/")) {
+        const key = fileUrl.replace("/manus-storage/", "");
+        const filePath = path.join(process.cwd(), "uploads", key);
+        buffer = await fs.readFile(filePath);
+      } else {
+        const response = await fetch(fileUrl);
+        if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
+        const arrayBuffer = await response.arrayBuffer();
+        buffer = Buffer.from(arrayBuffer);
+      }
       
       // 2. Process document (extract, chunk, embed)
       const { chunks, embeddings } = await processDocument(

@@ -21,13 +21,22 @@ export async function procesDocumentSync(
     // Update status to processing
     await db.updateDocumentStatus(documentId, "processing");
     
-    // 1. Fetch file content from URL
-    const response = await fetch(fileUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file: ${response.statusText}`);
+    // 1. Fetch file content
+    let buffer: Buffer;
+    if (fileUrl.startsWith("/manus-storage/")) {
+      const key = fileUrl.replace("/manus-storage/", "");
+      const path = await import("path");
+      const fs = await import("fs/promises");
+      const filePath = path.join(process.cwd(), "uploads", key);
+      buffer = await fs.readFile(filePath);
+    } else {
+      const response = await fetch(fileUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
     }
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
     
     // 2. Process document (extract, chunk, embed)
     const { chunks, embeddings } = await processDocument(

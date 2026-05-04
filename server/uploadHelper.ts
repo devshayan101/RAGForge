@@ -23,16 +23,19 @@ export async function getPresignedUploadUrl(
   const forgeUrl = ENV.forgeApiUrl;
   const forgeKey = ENV.forgeApiKey;
 
-  if (!forgeUrl || !forgeKey) {
-    throw new Error(
-      "Storage config missing: set BUILT_IN_FORGE_API_URL and BUILT_IN_FORGE_API_KEY"
-    );
-  }
-
   // Generate a unique key for the file
   const hash = crypto.randomUUID().replace(/-/g, "").slice(0, 8);
   const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
   const fileKey = `documents/v${versionId}/${hash}_${sanitizedFilename}`;
+
+  if (!forgeUrl || !forgeKey) {
+    // Local storage fallback
+    return {
+      uploadUrl: `/manus-storage/${fileKey}`,
+      fileKey,
+      expiresIn: 3600,
+    };
+  }
 
   // Request presigned PUT URL from Forge
   const presignUrl = new URL("v1/storage/presign/put", forgeUrl.replace(/\/+$/, "") + "/");
