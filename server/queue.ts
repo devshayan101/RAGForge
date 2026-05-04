@@ -67,17 +67,12 @@ export const ingestionWorker = connection ? new Worker(
       await db.updateDocumentStatus(documentId, "processing");
       
       // 1. Fetch file content
-      let buffer: Buffer;
-      if (fileUrl.startsWith("/manus-storage/")) {
-        const key = fileUrl.replace("/manus-storage/", "");
-        const filePath = path.join(process.cwd(), "uploads", key);
-        buffer = await fs.readFile(filePath);
-      } else {
-        const response = await fetch(fileUrl);
-        if (!response.ok) throw new Error(`Failed to fetch file: ${response.statusText}`);
-        const arrayBuffer = await response.arrayBuffer();
-        buffer = Buffer.from(arrayBuffer);
-      }
+      const { storageGetBuffer } = await import("./storage");
+      const storageKey = fileUrl.startsWith("/manus-storage/") 
+        ? fileUrl.replace("/manus-storage/", "") 
+        : fileUrl;
+        
+      const buffer = await storageGetBuffer(storageKey);
       
       // 2. Process document (extract, chunk, embed)
       const { chunks, embeddings } = await processDocument(

@@ -62,9 +62,10 @@ export async function storagePut(
   }
 
   const config = getGeminiConfig();
+  const isStandardGemini = config?.geminiUrl.includes("generativelanguage.googleapis.com");
 
-  if (!config) {
-    // Local storage fallback
+  if (!config || isStandardGemini) {
+    // Local storage fallback for standard Gemini or missing config
     const uploadDir = path.join(process.cwd(), "uploads");
     const filePath = path.join(uploadDir, key);
     
@@ -153,4 +154,37 @@ export async function storageGetSignedUrl(relKey: string): Promise<string> {
 
   const { url } = (await resp.json()) as { url: string };
   return url;
+}
+
+export async function storageGetBuffer(relKey: string): Promise<Buffer> {
+  const key = normalizeKey(relKey);
+
+  if (s3Client) {
+    const command = new GetObjectCommand({
+      Bucket: ENV.s3Bucket,
+      Key: key,
+    });
+    const response = await s3Client.send(command);
+    const body = response.Body;
+    if (!body) throw new Error("Empty body from S3");
+    const arrayBuffer = await body.transformToByteArray();
+    return Buffer.from(arrayBuffer);
+  }
+
+  const config = getGeminiConfig();
+  const isStandardGemini = config?.geminiUrl.includes("generativelanguage.googleapis.com");
+
+  if (!config || isStandardGemini) {
+    // Local storage
+    const uploadDir = path.join(process.cwd(), "uploads");
+    const filePath = path.join(uploadDir, key);
+    return await fs.readFile(filePath);
+  }
+
+  // Remote storage (Forge/Gemini proxy)
+  const signedUrl = await storageGetSignedUrl(key);
+  const resp = await fetch(signedUrl);
+  if (!resp.ok) throw new Error(`Failed to fetch from storage: ${resp.statusText}`);
+  const arrayBuffer = await resp.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
