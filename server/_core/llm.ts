@@ -297,7 +297,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: params.model || "gemma-2-9b-it",
+    model: params.model || ENV.geminiModel,
     messages: messages.map(normalizeMessage),
   };
 
@@ -325,6 +325,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
+  console.log("[LLM] Invoking with payload:", JSON.stringify(payload, null, 2));
   const response = await fetch(resolveChatUrl(), {
     method: "POST",
     headers: {
@@ -336,6 +337,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error(`[LLM] API Error: ${response.status} ${response.statusText}`, errorText);
     throw new Error(
       `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
     );
@@ -347,54 +349,71 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
 export async function embedTexts(texts: string[], model = "gemini-embedding-2"): Promise<number[][]> {
   assertApiKey();
   const baseUrl = resolveBaseUrl();
+  const BATCH_SIZE = 100;
 
   // Handle Google native API
   if (baseUrl.includes("generativelanguage.googleapis.com")) {
-    const url = `${baseUrl}/v1beta/models/${model}:batchEmbedContents?key=${ENV.geminiApiKey}`;
-    const response = await fetch(url, {
+    const allEmbeddings: number[][] = [];
+
+    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+      const batch = texts.slice(i, i + BATCH_SIZE);
+      const url = `${baseUrl}/v1beta/models/${model}:batchEmbedContents?key=${ENV.geminiApiKey}`;
+      
+      console.log(`[LLM] Embedding batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(texts.length / BATCH_SIZE)} (${batch.length} texts)`);
+      
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          requests: batch.map(text => ({
+            model: `models/${model}`,
+            content: { parts: [{ text }] },
+            output_dimensionality: 768, // Maintain compatibility with 768-dim vector expectations
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Google Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
+      }
+
+      const json = await response.json();
+      if (!json.embeddings) {
+        throw new Error(`Invalid Google embedding response: ${JSON.stringify(json)}`);
+      }
+      allEmbeddings.push(...json.embeddings.map((item: any) => item.values));
+    }
+
+    return allEmbeddings;
+  }
+
+  // Fallback for OpenAI-compatible proxies (Forge, Ollama, etc.)
+  const allEmbeddings: number[][] = [];
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    const response = await fetch(resolveEmbedUrl(), {
       method: "POST",
       headers: {
         "content-type": "application/json",
+        authorization: `Bearer ${ENV.geminiApiKey}`,
       },
       body: JSON.stringify({
-        requests: texts.map(text => ({
-          model: `models/${model}`,
-          content: { parts: [{ text }] },
-          output_dimensionality: 768, // Maintain compatibility with 768-dim vector expectations
-        })),
+        model,
+        input: batch,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Google Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
+      throw new Error(`Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
     }
 
     const json = await response.json();
-    if (!json.embeddings) {
-      throw new Error(`Invalid Google embedding response: ${JSON.stringify(json)}`);
-    }
-    return json.embeddings.map((item: any) => item.values);
+    allEmbeddings.push(...json.data.map((item: any) => item.embedding));
   }
-
-  // Fallback for OpenAI-compatible proxies (Forge, Ollama, etc.)
-  const response = await fetch(resolveEmbedUrl(), {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${ENV.geminiApiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      input: texts,
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
-  }
-
-  const json = await response.json();
-  return json.data.map((item: any) => item.embedding);
+  
+  return allEmbeddings;
 }

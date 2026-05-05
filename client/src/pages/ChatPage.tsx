@@ -90,9 +90,10 @@ export default function ChatPage({ versionId }: ChatPageProps) {
         m.id === assistantMessageId ? { ...m, sources } : m
       ));
 
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to get response");
+    } catch (error: any) {
+      console.error("[ChatPage] Mutation error:", error);
+      const errorMessage = error?.message || "Failed to get response";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
