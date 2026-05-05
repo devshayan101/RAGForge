@@ -144,4 +144,6 @@
 6. Implement Graph RAG mode (optional)
 ---------------------------------------------------------
 
-1. Document upload is configured to local. Change it to Cloudflare r2, or aws s3.
+[x] 1. Document upload is configured to local. Change it to Cloudflare r2, or aws s3.
+[ ] 2. Documents section should show different stages of processing [uploading,embedding, processing, ready].
+[ ] 3. 

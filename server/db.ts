@@ -236,6 +236,19 @@ export async function getDocumentById(documentId: number) {
   return result[0];
 }
 
+export async function getDocumentByFileKey(fileKey: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db.select().from(documents).where(eq(documents.fileKey, fileKey)).limit(1);
+  return result[0];
+}
+
+export async function updateDocument(documentId: number, data: any) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(documents).set(data).where(eq(documents.id, documentId));
+}
+
 export async function createDocument(versionId: number, filename: string, fileKey: string, fileSize: number, fileType: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -245,16 +258,16 @@ export async function createDocument(versionId: number, filename: string, fileKe
     fileKey,
     fileSize,
     fileType,
-    ingestionStatus: "pending",
+    ingestionStatus: "uploading",
   });
   return result[0].insertId as number;
 }
 
-export async function updateDocumentStatus(documentId: number, status: "pending" | "processing" | "completed" | "failed", error?: string) {
+export async function updateDocumentStatus(documentId: number, status: "uploading" | "pending" | "extracting" | "embedding" | "ready" | "failed", error?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const updates: any = { ingestionStatus: status };
-  if (status === "completed") updates.completedAt = new Date();
+  if (status === "ready") updates.completedAt = new Date();
   if (error) updates.ingestionError = error;
   return db.update(documents).set(updates).where(eq(documents.id, documentId));
 }

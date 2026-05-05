@@ -91,15 +91,18 @@ export async function processDocument(
   fileType: string,
   filename: string,
   chunkSize: number = 1000,
-  overlap: number = 100
+  overlap: number = 100,
+  onStatus?: (status: "extracting" | "embedding") => Promise<void>
 ): Promise<{ chunks: string[]; embeddings: number[][] }> {
   // Extract text from file
+  if (onStatus) await onStatus("extracting");
   const text = await extractTextFromFile(fileBuffer, fileType, filename);
 
   // Chunk the text
   const chunks = chunkText(text, chunkSize, overlap);
 
   // Generate embeddings for chunks
+  if (onStatus) await onStatus("embedding");
   const embeddings = await generateEmbeddings(chunks);
 
   return { chunks, embeddings };

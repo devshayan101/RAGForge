@@ -17,7 +17,19 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
-  const documentsQuery = trpc.documents.list.useQuery({ versionId });
+  const documentsQuery = trpc.documents.list.useQuery(
+    { versionId },
+    {
+      refetchInterval: (query) => {
+        const hasProcessing = query.state.data?.some((doc: any) => 
+          ['uploading', 'pending', 'extracting', 'embedding'].includes(doc.ingestionStatus)
+        );
+        return hasProcessing ? 2000 : false;
+      },
+      // Ensure we refetch on window focus to catch updates
+      refetchOnWindowFocus: true,
+    }
+  );
   const uploadDocumentMutation = trpc.documents.upload.useMutation();
   const deleteDocumentMutation = trpc.documents.delete.useMutation();
   const getPresignedUrlMutation = trpc.documents.getPresignedUrl.useMutation();
@@ -180,16 +192,22 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {doc.ingestionStatus === 'pending' && (
-                          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Pending</span>
-                        )}
-                        {doc.ingestionStatus === 'processing' && (
-                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex items-center gap-1">
-                            <Loader2 className="w-3 h-3 animate-spin" /> Processing
+                        {doc.ingestionStatus === 'uploading' && (
+                          <span className="text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" /> Uploading
                           </span>
                         )}
-                        {doc.ingestionStatus === 'completed' && (
-                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Completed</span>
+                        {doc.ingestionStatus === 'pending' && (
+                          <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Queued</span>
+                        )}
+                        {(doc.ingestionStatus === 'extracting' || doc.ingestionStatus === 'embedding') && (
+                          <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex items-center gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" /> 
+                            {doc.ingestionStatus === 'extracting' ? 'Extracting' : 'Embedding'}
+                          </span>
+                        )}
+                        {doc.ingestionStatus === 'ready' && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Ready</span>
                         )}
                         {doc.ingestionStatus === 'failed' && (
                           <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Failed</span>

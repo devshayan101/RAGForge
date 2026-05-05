@@ -63,8 +63,8 @@ export const ingestionWorker = connection ? new Worker(
     console.log(`[Queue] Processing document ${documentId}: ${filename}`);
     
     try {
-      // Update status to processing
-      await db.updateDocumentStatus(documentId, "processing");
+      // Update status to pending
+      await db.updateDocumentStatus(documentId, "pending");
       
       // 1. Fetch file content
       const { storageGetBuffer } = await import("./storage");
@@ -80,7 +80,10 @@ export const ingestionWorker = connection ? new Worker(
         fileType,
         filename,
         chunkSize,
-        chunkOverlap
+        chunkOverlap,
+        async (status) => {
+          await db.updateDocumentStatus(documentId, status);
+        }
       );
       
       // 3. Store chunks and embeddings
@@ -96,7 +99,7 @@ export const ingestionWorker = connection ? new Worker(
       
       // 4. Update document status and chunk count
       await db.updateDocumentChunkCount(documentId, chunks.length);
-      await db.updateDocumentStatus(documentId, "completed");
+      await db.updateDocumentStatus(documentId, "ready");
       
       console.log(`[Queue] Completed document ${documentId}: ${chunks.length} chunks`);
     } catch (error: any) {

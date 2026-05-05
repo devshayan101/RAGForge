@@ -32,7 +32,8 @@ export default function UsageDashboardPage() {
   // Calculate stats
   const totalDocuments = documents?.length || 0;
   const totalChunks = documents?.reduce((sum, doc) => sum + (doc.chunkCount || 0), 0) || 0;
-  const processingDocs = documents?.filter(d => d.ingestionStatus === "processing").length || 0;
+  const processingDocs = documents?.filter(d => ["uploading", "pending", "extracting", "embedding"].includes(d.ingestionStatus)).length || 0;
+  const readyDocs = documents?.filter(d => d.ingestionStatus === "ready").length || 0;
   const failedDocs = documents?.filter(d => d.ingestionStatus === "failed").length || 0;
 
   if (isLoading) {
@@ -169,8 +170,8 @@ export default function UsageDashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className={`px-2 py-1 text-xs rounded-full ${
-                          doc.ingestionStatus === "completed" ? "bg-green-100 text-green-800" :
-                          doc.ingestionStatus === "processing" ? "bg-blue-100 text-blue-800" :
+                          doc.ingestionStatus === "ready" ? "bg-green-100 text-green-800" :
+                          ["uploading", "pending", "extracting", "embedding"].includes(doc.ingestionStatus) ? "bg-blue-100 text-blue-800" :
                           doc.ingestionStatus === "failed" ? "bg-red-100 text-red-800" :
                           "bg-gray-100 text-gray-800"
                         }`}>
@@ -196,14 +197,14 @@ export default function UsageDashboardPage() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Completed</span>
-                  <span className="font-medium">{documents?.filter(d => d.ingestionStatus === "completed").length || 0} / {totalDocuments}</span>
+                  <span>Ready</span>
+                  <span className="font-medium">{readyDocs} / {totalDocuments}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-green-600 h-2 rounded-full transition-all"
                     style={{
-                      width: totalDocuments > 0 ? `${((documents?.filter(d => d.ingestionStatus === "completed").length || 0) / totalDocuments) * 100}%` : "0%"
+                      width: totalDocuments > 0 ? `${(readyDocs / totalDocuments) * 100}%` : "0%"
                     }}
                   />
                 </div>
@@ -211,8 +212,8 @@ export default function UsageDashboardPage() {
 
               <div className="grid grid-cols-3 gap-4 pt-4">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-green-600">{documents?.filter(d => d.ingestionStatus === "completed").length || 0}</p>
-                  <p className="text-xs text-muted-foreground">Completed</p>
+                  <p className="text-2xl font-bold text-green-600">{readyDocs}</p>
+                  <p className="text-xs text-muted-foreground">Ready</p>
                 </div>
                 <div className="text-center">
                   <p className="text-2xl font-bold text-blue-600">{processingDocs}</p>

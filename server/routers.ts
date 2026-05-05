@@ -390,6 +390,16 @@ export const appRouter = router({
             input.fileType,
             input.versionId
           );
+
+          // Create document record in "uploading" status
+          await db.createDocument(
+            input.versionId,
+            input.filename,
+            presignedUrl.fileKey,
+            0,
+            input.fileType
+          );
+
           return presignedUrl;
         } catch (error: any) {
           throw new TRPCError({
@@ -434,13 +444,32 @@ export const appRouter = router({
         }
 
         const fileType = input.fileType || "application/octet-stream";
-        const docId = await db.createDocument(
-          input.versionId,
-          input.filename,
-          input.fileUrl,
-          input.fileSize,
-          fileType
-        );
+        
+        // Extract key from URL
+        const fileKey = input.fileUrl.startsWith("/manus-storage/") 
+          ? input.fileUrl.replace("/manus-storage/", "") 
+          : input.fileUrl;
+
+        // Try to find existing record created during getPresignedUrl
+        const existing = await db.getDocumentByFileKey(fileKey);
+        let docId: number;
+
+        if (existing) {
+          docId = existing.id;
+          await db.updateDocument(docId, {
+            fileSize: input.fileSize,
+            ingestionStatus: "pending",
+          });
+        } else {
+          docId = await db.createDocument(
+            input.versionId,
+            input.filename,
+            fileKey,
+            input.fileSize,
+            fileType
+          );
+          await db.updateDocumentStatus(docId, "pending");
+        }
 
         // Log usage
         await db.logUsage(pipeline!.id, project.id, "document_upload", 1, 0, "success");
