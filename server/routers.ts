@@ -485,7 +485,7 @@ export const appRouter = router({
             fileType: fileType,
             chunkSize: version.config.chunkSize,
             chunkOverlap: version.config.chunkOverlap,
-          });
+          }, { jobId: `doc-${docId}` });
         } else {
           console.warn("[Documents] Redis unavailable. Processing document synchronously.");
           await procesDocumentSync(
@@ -517,6 +517,14 @@ export const appRouter = router({
 
         const document = await db.getDocumentById(input.documentId);
         if (document) {
+          // Remove from ingestion queue if present
+          if (ingestionQueue) {
+            const job = await ingestionQueue.getJob(`doc-${input.documentId}`);
+            if (job) {
+              await job.remove();
+            }
+          }
+
           // Delete from storage
           await storageDelete(document.fileKey);
           
@@ -585,7 +593,7 @@ export const appRouter = router({
                 fileType: "application/octet-stream",
                 chunkSize: version.config.chunkSize,
                 chunkOverlap: version.config.chunkOverlap,
-              });
+              }, { jobId: `doc-${docId}` });
             } else {
               await procesDocumentSync(
                 docId,

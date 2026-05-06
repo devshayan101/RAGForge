@@ -284,6 +284,13 @@ export async function deleteDocument(documentId: number) {
   return db.delete(documents).where(eq(documents.id, documentId));
 }
 
+export async function checkDocumentExists(documentId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db.select({ id: documents.id }).from(documents).where(eq(documents.id, documentId)).limit(1);
+  return result.length > 0;
+}
+
 // Chunks queries
 export async function createChunk(documentId: number, sequenceIndex: number, text: string, pageNo?: number, embeddingJson?: string) {
   const db = await getDb();

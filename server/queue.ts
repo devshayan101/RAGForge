@@ -64,6 +64,13 @@ export const ingestionWorker = connection ? new Worker(
     console.log(`[Queue] Processing document ${documentId}: ${filename}`);
     
     try {
+      // 0. Check if document still exists
+      const docExists = await db.checkDocumentExists(documentId);
+      if (!docExists) {
+        console.warn(`[Queue] Document ${documentId} no longer exists in DB. Skipping ingestion.`);
+        return;
+      }
+
       // Update status to pending
       await db.updateDocumentStatus(documentId, "pending");
       
@@ -73,7 +80,20 @@ export const ingestionWorker = connection ? new Worker(
         ? fileUrl.replace("/manus-storage/", "") 
         : fileUrl;
         
-      const buffer = await storageGetBuffer(storageKey);
+      let buffer: Buffer;
+      try {
+        buffer = await storageGetBuffer(storageKey);
+      } catch (error: any) {
+        // If file is missing from storage, check if document still exists in DB
+        if (error.Code === 'NoSuchKey' || error.message?.includes('NoSuchKey') || error.message?.includes('404')) {
+          const stillExists = await db.checkDocumentExists(documentId);
+          if (!stillExists) {
+            console.warn(`[Queue] Document ${documentId} was deleted from storage and DB. Skipping.`);
+            return;
+          }
+        }
+        throw error;
+      }
       
       // 2. Process document (extract, chunk, embed)
       const { chunks, embeddings } = await processDocument(
@@ -83,10 +103,19 @@ export const ingestionWorker = connection ? new Worker(
         chunkSize,
         chunkOverlap,
         async (status) => {
-          await db.updateDocumentStatus(documentId, status);
+          // Double check existence before updating status
+          if (await db.checkDocumentExists(documentId)) {
+            await db.updateDocumentStatus(documentId, status);
+          }
         }
       );
       
+      // Double check existence before final updates
+      if (!(await db.checkDocumentExists(documentId))) {
+        console.warn(`[Queue] Document ${documentId} was deleted during processing. Skipping final updates.`);
+        return;
+      }
+
       // 3. Store chunks and embeddings
       const chunkData = chunks.map((text, i) => ({
         documentId,
@@ -104,7 +133,16 @@ export const ingestionWorker = connection ? new Worker(
       console.log(`[Queue] Completed document ${documentId}: ${chunks.length} chunks`);
     } catch (error: any) {
       console.error(`[Queue] Failed to process document ${documentId}:`, error);
-      await db.updateDocumentStatus(documentId, "failed", error.message);
+      
+      // Only update status if document still exists
+      try {
+        if (await db.checkDocumentExists(documentId)) {
+          await db.updateDocumentStatus(documentId, "failed", error.message);
+        }
+      } catch (statusError) {
+        console.error(`[Queue] Failed to update error status for ${documentId}:`, statusError);
+      }
+      
       throw error;
     }
   },

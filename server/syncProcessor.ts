@@ -18,24 +18,41 @@ export async function procesDocumentSync(
   try {
     console.log(`[SyncProcessor] Processing document ${documentId}: ${filename}`);
     
+    // 0. Check if document still exists
+    const docExists = await db.checkDocumentExists(documentId);
+    if (!docExists) {
+      console.warn(`[SyncProcessor] Document ${documentId} no longer exists. Skipping.`);
+      return { success: true, chunkCount: 0 };
+    }
+
     // Update status to pending
     await db.updateDocumentStatus(documentId, "pending");
     
     // 1. Fetch file content
     let buffer: Buffer;
-    if (fileUrl.startsWith("/manus-storage/")) {
-      const key = fileUrl.replace("/manus-storage/", "");
-      const path = await import("path");
-      const fs = await import("fs/promises");
-      const filePath = path.join(process.cwd(), "uploads", key);
-      buffer = await fs.readFile(filePath);
-    } else {
-      const response = await fetch(fileUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
+    try {
+      if (fileUrl.startsWith("/manus-storage/")) {
+        const key = fileUrl.replace("/manus-storage/", "");
+        const path = await import("path");
+        const fs = await import("fs/promises");
+        const filePath = path.join(process.cwd(), "uploads", key);
+        buffer = await fs.readFile(filePath);
+      } else {
+        const response = await fetch(fileUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch file: ${response.statusText}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        buffer = Buffer.from(arrayBuffer);
       }
-      const arrayBuffer = await response.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
+    } catch (error: any) {
+      // Check if document was deleted while fetching
+      const stillExists = await db.checkDocumentExists(documentId);
+      if (!stillExists) {
+        console.warn(`[SyncProcessor] Document ${documentId} was deleted during fetch. Skipping.`);
+        return { success: true, chunkCount: 0 };
+      }
+      throw error;
     }
     
     // 2. Process document (extract, chunk, embed)
@@ -46,11 +63,18 @@ export async function procesDocumentSync(
       chunkSize,
       chunkOverlap,
       async (status) => {
-        await db.updateDocumentStatus(documentId, status);
+        if (await db.checkDocumentExists(documentId)) {
+          await db.updateDocumentStatus(documentId, status);
+        }
       }
     );
     
     // 3. Store chunks and embeddings
+    if (!(await db.checkDocumentExists(documentId))) {
+      console.warn(`[SyncProcessor] Document ${documentId} was deleted during processing. Skipping.`);
+      return { success: true, chunkCount: 0 };
+    }
+
     const chunkData = chunks.map((text, i) => ({
       documentId,
       sequenceIndex: i,
@@ -73,9 +97,11 @@ export async function procesDocumentSync(
   } catch (error: any) {
     console.error(`[SyncProcessor] Error processing document ${documentId}:`, error.message);
     
-    // Update status to failed
+    // Update status to failed only if document still exists
     try {
-      await db.updateDocumentStatus(documentId, "failed");
+      if (await db.checkDocumentExists(documentId)) {
+        await db.updateDocumentStatus(documentId, "failed", error.message);
+      }
     } catch (statusError) {
       console.error("Failed to update document status:", statusError);
     }
