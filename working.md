@@ -30,7 +30,7 @@ This document explains the step-by-step process of how a user query is handled b
 
 ### B. LLM Invocation
 **File:** `server/_core/llm.ts`
-- The system calls `invokeLLM` with the currently configured model (e.g., `gemma-4-31b-it`).
+- The system calls `invokeLLM` with the currently configured model (e.g., `gemini-1.5-flash`).
 - **Prompt Structure**:
   - **System Role**: "You are a helpful assistant. Answer the user's question based on the provided context..."
   - **User Role**: "Context: [RETRIEVED_TEXT] \n\n Question: [USER_QUERY]"

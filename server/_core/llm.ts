@@ -377,10 +377,17 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   });
 
   if (!response.ok) {
-    const errorText = await response.text();
-    console.error(`[LLM] API Error: ${response.status} ${response.statusText}`, errorText);
+    let errorDetail = "No error detail available";
+    try {
+      const errorText = await response.text();
+      errorDetail = errorText;
+    } catch (e) {
+      errorDetail = "Failed to read error response body";
+    }
+
+    console.error(`[LLM] API Error: ${response.status} ${response.statusText}`, errorDetail);
     throw new Error(
-      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorText}`
+      `LLM invoke failed: ${response.status} ${response.statusText} – ${errorDetail}`
     );
   }
 

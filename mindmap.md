@@ -30,7 +30,7 @@ mindmap
         Documents Router
         Search & Chat Routers
       Services
-        LLM Integration (llm.ts - configurable via GEMINI_MODEL)
+        LLM Integration (llm.ts - configurable via GEMINI_MODEL, default: Gemma 4)
         Document Processing (batched & rate-limited embeddings)
         Queue Management (BullMQ/Redis)
         Storage Service (S3/MinIO)
@@ -63,7 +63,7 @@ Users can create **Projects**, each containing multiple **Pipelines**. Pipelines
 Documents are uploaded (via presigned URLs), processed into chunks, and transformed into vector embeddings using `gemini-embedding-2`. The system tracks granular ingestion stages (**uploading**, **extracting**, **embedding**, **ready**) to provide real-time feedback. Embedding generation is processed in batches of 100 with exponential backoff and parallel processing to take advantage of high API rate limits (2200 RPM). This is handled by a background queue (`BullMQ`) with a synchronous fallback.
 
 ### 3. Vector Search & RAG Chat
-The system performs **Cosine Similarity** search over chunks to find relevant context for user queries. The **Chat** feature uses this context to provide grounded LLM responses.
+The system performs **Cosine Similarity** search over chunks to find relevant context for user queries. The **Chat** feature uses this context to provide grounded LLM responses, utilizing **Gemma 4** for frontier-level reasoning and agentic capabilities.
 
 ### 4. API & External Access
 Users can generate **API Keys** to interact with their RAG pipelines programmatically, with built-in usage tracking and analytics.

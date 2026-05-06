@@ -1,0 +1,1 @@
+ALTER TABLE `documents` MODIFY COLUMN `ingestionStatus` enum('uploading','pending','extracting','embedding','ready','failed','ocr_required') NOT NULL DEFAULT 'uploading';

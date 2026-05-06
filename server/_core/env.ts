@@ -7,7 +7,7 @@ export const ENV = {
   isProduction: process.env.NODE_ENV === "production",
   geminiApiUrl: process.env.GEMINI_API_URL ?? "",
   geminiApiKey: process.env.GEMINI_API_KEY ?? "",
-  geminiModel: process.env.GEMINI_MODEL ?? "gemini-1.5-flash",
+  geminiModel: process.env.GEMINI_MODEL ?? "models/gemini-2.5-flash",
   clerkPublishableKey: process.env.CLERK_PUBLISHABLE_KEY ?? "",
   clerkSecretKey: process.env.CLERK_SECRET_KEY ?? "",
   s3AccessKeyId: process.env.S3_ACCESS_KEY_ID ?? "",

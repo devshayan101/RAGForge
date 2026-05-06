@@ -1,7 +1,7 @@
 import { Queue, Worker, Job } from "bullmq";
 import Redis from "ioredis";
 import { ENV } from "./_core/env";
-import { processDocument } from "./documentProcessor";
+import { processDocument, OCRRequiredError } from "./documentProcessor";
 import * as db from "./db";
 import fs from "fs/promises";
 import path from "path";
@@ -59,9 +59,9 @@ export const ingestionQueue = connection ? new Queue("document-ingestion", {
 export const ingestionWorker = connection ? new Worker(
   "document-ingestion",
   async (job: Job) => {
-    const { documentId, versionId, fileUrl, filename, fileType, chunkSize, chunkOverlap } = job.data;
+    const { documentId, versionId, fileUrl, filename, fileType, chunkSize, chunkOverlap, forceOCR } = job.data;
     
-    console.log(`[Queue] Processing document ${documentId}: ${filename}`);
+    console.log(`[Queue] Processing document ${documentId}: ${filename} (forceOCR: ${!!forceOCR})`);
     
     try {
       // 0. Check if document still exists
@@ -105,9 +105,10 @@ export const ingestionWorker = connection ? new Worker(
         async (status) => {
           // Double check existence before updating status
           if (await db.checkDocumentExists(documentId)) {
-            await db.updateDocumentStatus(documentId, status);
+            await db.updateDocumentStatus(documentId, status as any);
           }
-        }
+        },
+        { forceOCR }
       );
       
       // Double check existence before final updates
@@ -132,6 +133,12 @@ export const ingestionWorker = connection ? new Worker(
       
       console.log(`[Queue] Completed document ${documentId}: ${chunks.length} chunks`);
     } catch (error: any) {
+      if (error instanceof OCRRequiredError) {
+        console.log(`[Queue] OCR required for document ${documentId}. Pausing.`);
+        await db.updateDocumentStatus(documentId, "ocr_required");
+        return;
+      }
+
       console.error(`[Queue] Failed to process document ${documentId}:`, error);
       
       // Only update status if document still exists

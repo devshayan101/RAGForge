@@ -37,7 +37,8 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
   const uploadDocumentMutation = trpc.documents.upload.useMutation();
   const deleteDocumentMutation = trpc.documents.delete.useMutation();
   const getPresignedUrlMutation = trpc.documents.getPresignedUrl.useMutation();
-  const syncDocumentsMutation = trpc.documents.sync.useMutation();
+    const syncDocumentsMutation = trpc.documents.sync.useMutation();
+  const confirmOCRMutation = trpc.documents.confirmOCR.useMutation();
 
   const handleSyncDocuments = async (silent = false) => {
     try {
@@ -50,6 +51,20 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
       if (!silent) {
         toast.error("Failed to sync documents");
       }
+    }
+  };
+
+  const handleConfirmOCR = async (documentId: number, filename: string) => {
+    if (!confirm(`This document seems to be scanned and requires OCR. Proceed with LLM-based OCR extraction? This may take some time.`)) {
+      return;
+    }
+    
+    try {
+      await confirmOCRMutation.mutateAsync({ documentId });
+      toast.success(`OCR extraction started for ${filename}`);
+      documentsQuery.refetch();
+    } catch (error) {
+      toast.error("Failed to start OCR extraction");
     }
   };
 
@@ -269,24 +284,56 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
                         {doc.ingestionStatus === 'ready' && (
                           <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Ready</span>
                         )}
+                        {doc.ingestionStatus === 'ocr_required' && (
+                          <span className="text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" /> OCR Required
+                          </span>
+                        )}
                         {doc.ingestionStatus === 'failed' && (
                           <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">Failed</span>
                         )}
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteDocument(doc.id, doc.filename)}
-                      disabled={deleteDocumentMutation.isPending}
-                    >
-                      <Trash2 className="w-4 h-4 text-destructive" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {doc.ingestionStatus === 'ocr_required' && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => handleConfirmOCR(doc.id, doc.filename)}
+                          disabled={confirmOCRMutation.isPending}
+                        >
+                          {confirmOCRMutation.isPending ? (
+                            <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-3 h-3 mr-2" />
+                          )}
+                          Process with OCR
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteDocument(doc.id, doc.filename)}
+                        disabled={deleteDocumentMutation.isPending}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
                   </div>
                   {doc.ingestionStatus === 'failed' && doc.ingestionError && (
                     <Alert className="mt-3" variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertDescription>{doc.ingestionError}</AlertDescription>
+                    </Alert>
+                  )}
+                  {doc.ingestionStatus === 'ocr_required' && (
+                    <Alert className="mt-3 bg-orange-50 border-orange-200 text-orange-900">
+                      <AlertCircle className="h-4 w-4 text-orange-600" />
+                      <AlertDescription>
+                        This PDF appears to be a scanned document without a text layer. 
+                        Click <strong>Process with OCR</strong> above to extract text using AI.
+                      </AlertDescription>
                     </Alert>
                   )}
                 </CardContent>

@@ -623,9 +623,45 @@ export const appRouter = router({
         }
 
         return {
-          success: true,
-          ...results,
+          added: results.added,
+          removed: results.removed,
         };
+      }),
+
+    confirmOCR: protectedProcedure
+      .input(z.object({ documentId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const document = await db.getDocumentById(input.documentId);
+        if (!document) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+
+        const version = await db.getPipelineVersionById(document.versionId);
+        const pipeline = await db.getPipelineById(version!.pipelineId);
+        const project = await db.getProjectById(pipeline!.projectId);
+
+        if (!project || project.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+
+        // Reset document status to pending
+        await db.updateDocumentStatus(input.documentId, "pending");
+
+        // Re-queue with forceOCR: true
+        if (ingestionQueue) {
+          await ingestionQueue.add("ingest", {
+            documentId: document.id,
+            versionId: document.versionId,
+            fileUrl: `/manus-storage/${document.fileKey}`,
+            filename: document.filename,
+            fileType: document.fileType,
+            chunkSize: version!.config.chunkSize,
+            chunkOverlap: version!.config.chunkOverlap,
+            forceOCR: true,
+          }, { jobId: `doc-${document.id}-${Date.now()}` }); // Use unique jobId to bypass deduplication
+        }
+
+        return { success: true };
       }),
   }),
 

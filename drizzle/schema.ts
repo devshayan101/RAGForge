@@ -84,7 +84,7 @@ export const documents = mysqlTable("documents", {
   fileType: varchar("fileType", { length: 50 }).notNull(),
   contentSummary: text("contentSummary"),
   chunkCount: int("chunkCount").default(0).notNull(),
-  ingestionStatus: mysqlEnum("ingestionStatus", ["uploading", "pending", "extracting", "embedding", "ready", "failed"]).default("uploading").notNull(),
+  ingestionStatus: mysqlEnum("ingestionStatus", ["uploading", "pending", "extracting", "embedding", "ready", "failed", "ocr_required"]).default("uploading").notNull(),
   ingestionError: text("ingestionError"),
   uploadedAt: timestamp("uploadedAt").defaultNow().notNull(),
   completedAt: timestamp("completedAt"),
