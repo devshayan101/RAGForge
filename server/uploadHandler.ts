@@ -11,9 +11,24 @@ import * as db from "./db";
 import { TRPCError } from "@trpc/server";
 import { ENV } from "./_core/env";
 
-// Configure multer for in-memory file uploads
+import path from "path";
+import fs from "fs/promises";
+import os from "os";
+
+// Configure multer for disk-based temporary storage
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      const tempDir = path.join(os.tmpdir(), "ragforge-uploads");
+      // Synchronous check/create is fine during initialization or we can use a helper
+      // but multer calls this for every file. We'll use a pre-created dir.
+      cb(null, tempDir);
+    },
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
+    },
+  }),
   limits: {
     fileSize: ENV.maxFileSize,
   },
@@ -26,6 +41,14 @@ const upload = multer({
     }
   },
 });
+
+// Ensure temp directory exists
+import { mkdirSync } from "fs";
+try {
+  mkdirSync(path.join(os.tmpdir(), "ragforge-uploads"), { recursive: true });
+} catch (err) {
+  console.error("Failed to create temp directory:", err);
+}
 
 export function registerUploadHandler(app: Express) {
   app.post("/api/upload", upload.single("file"), async (req: any, res: Response) => {
@@ -47,11 +70,16 @@ export function registerUploadHandler(app: Express) {
 
       // Upload file to S3 using storage helper
       const file = req.file as Express.Multer.File;
-      const fileKey = `documents/v${versionId}/${Date.now()}_${file.originalname}`;
+      const fileKey = (req.body.fileKey as string) || `documents/v${versionId}/${Date.now()}_${file.originalname}`;
+      
+      // Read the file into a buffer for storagePut
+      const buffer = await fs.readFile(file.path);
+      
       const { key, url } = await storagePut(
         fileKey,
-        file.buffer,
-        file.mimetype || "application/octet-stream"
+        buffer,
+        file.mimetype || "application/octet-stream",
+        file.path // Pass the path so storagePut can delete it after S3 upload
       );
 
       res.json({
@@ -65,6 +93,19 @@ export function registerUploadHandler(app: Express) {
       res.status(500).json({
         error: error.message || "Failed to upload file",
       });
+    } finally {
+      // Ensure the temporary file is deleted if storagePut didn't handle it
+      if (req.file?.path) {
+        try {
+          // Check if file still exists before trying to delete
+          const { access } = await import("fs/promises");
+          await access(req.file.path);
+          await fs.unlink(req.file.path);
+          console.log(`[UploadHandler] Cleaned up temporary file: ${req.file.path}`);
+        } catch (e) {
+          // File already deleted or inaccessible, which is expected if storagePut succeeded
+        }
+      }
     }
   });
 }

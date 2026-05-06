@@ -82,7 +82,11 @@ export async function extractTextFromFile(
 /**
  * Extract text using LLM OCR for scanned PDFs
  */
-async function extractTextWithOCR(parser: any, pageCount: number): Promise<string> {
+async function extractTextWithOCR(
+  parser: any, 
+  pageCount: number, 
+  onProgress?: (progress: number) => Promise<void>
+): Promise<string> {
   const BATCH_SIZE = 5; // Process 5 pages at a time to stay within limits and provide progress
   let fullText = "";
 
@@ -93,6 +97,12 @@ async function extractTextWithOCR(parser: any, pageCount: number): Promise<strin
     const pages = Array.from({ length: endPage - i + 1 }, (_, index) => i + index);
 
     console.log(`[OCR] Processing pages ${i} to ${endPage}...`);
+    
+    // Update progress (OCR takes 0-100% of extraction phase)
+    if (onProgress) {
+      const progress = Math.round(((i - 1) / pageCount) * 100);
+      await onProgress(progress);
+    }
 
     try {
       // Get screenshots for the batch
@@ -132,6 +142,7 @@ async function extractTextWithOCR(parser: any, pageCount: number): Promise<strin
     }
   }
 
+  if (onProgress) await onProgress(100);
   return fullText || "OCR failed to extract text.";
 }
 
@@ -181,19 +192,69 @@ export async function processDocument(
   filename: string,
   chunkSize: number = 1000,
   overlap: number = 100,
-  onStatus?: (status: "extracting" | "embedding") => Promise<void>,
+  onStatus?: (status: "extracting" | "embedding", progress: number) => Promise<void>,
   options: { forceOCR?: boolean } = {}
 ): Promise<{ chunks: string[]; embeddings: number[][] }> {
-  // Extract text from file
-  if (onStatus) await onStatus("extracting");
-  const text = await extractTextFromFile(fileBuffer, fileType, filename, options);
+  // 1. Extract text from file
+  if (onStatus) await onStatus("extracting", 0);
+  
+  let text = "";
+  if (fileType.toLowerCase() === "application/pdf" || fileType.toLowerCase() === "pdf") {
+    // Specialized PDF extraction for OCR progress
+    const { PDFParse } = pdfParse;
+    const parser = new PDFParse({ data: fileBuffer });
+    try {
+      const data = await parser.getText();
+      const info = await parser.getInfo();
+      const pageCount = (typeof info.pages === 'number' ? info.pages : (info.total || 0));
+      text = data.text || "";
 
-  // Chunk the text
+      if (pageCount > 0 && (text.length / pageCount < 50 || text.trim().length === 0)) {
+        if (options.forceOCR) {
+          console.log(`[Processor] Low content detected. Processing with forced OCR fallback.`);
+          text = await extractTextWithOCR(parser, pageCount, async (p) => {
+            if (onStatus) await onStatus("extracting", p);
+          });
+        } else {
+          console.log(`[Processor] Low content detected. Signaling OCR required.`);
+          throw new OCRRequiredError();
+        }
+      }
+    } catch (error) {
+      if (error instanceof OCRRequiredError) throw error;
+      console.error("Error parsing PDF:", error);
+      throw new Error(`Failed to parse PDF: ${error}`);
+    } finally {
+      if (parser && typeof parser.destroy === 'function') {
+        await parser.destroy();
+      }
+    }
+  } else {
+    // Normal extraction for other types
+    text = await extractTextFromFile(fileBuffer, fileType, filename, options);
+  }
+  
+  if (onStatus) await onStatus("extracting", 100);
+
+  // 2. Chunk the text
   const chunks = chunkText(text, chunkSize, overlap);
 
-  // Generate embeddings for chunks
-  if (onStatus) await onStatus("embedding");
-  const embeddings = await generateEmbeddings(chunks);
+  // 3. Generate embeddings for chunks with progress
+  if (onStatus) await onStatus("embedding", 0);
+  
+  const embeddings: number[][] = [];
+  const BATCH_SIZE = 100; // Consistent with db batching
+  
+  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+    const batch = chunks.slice(i, i + BATCH_SIZE);
+    const batchEmbeddings = await generateEmbeddings(batch);
+    embeddings.push(...batchEmbeddings);
+    
+    if (onStatus) {
+      const progress = Math.round((embeddings.length / chunks.length) * 100);
+      await onStatus("embedding", progress);
+    }
+  }
 
   return { chunks, embeddings };
 }

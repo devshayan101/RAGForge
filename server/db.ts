@@ -278,6 +278,14 @@ export async function updateDocumentChunkCount(documentId: number, chunkCount: n
   return db.update(documents).set({ chunkCount }).where(eq(documents.id, documentId));
 }
 
+export async function updateDocumentProgress(documentId: number, progress: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  // Clamp progress between 0 and 100
+  const clampedProgress = Math.max(0, Math.min(100, progress));
+  return db.update(documents).set({ progress: clampedProgress }).where(eq(documents.id, documentId));
+}
+
 export async function deleteDocument(documentId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

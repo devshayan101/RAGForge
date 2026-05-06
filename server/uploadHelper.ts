@@ -16,6 +16,8 @@ const s3Client = (ENV.s3AccessKeyId && ENV.s3SecretAccessKey && ENV.s3Bucket)
       },
       endpoint: ENV.s3Endpoint || undefined,
       forcePathStyle: !!ENV.s3Endpoint,
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      responseChecksumValidation: "WHEN_REQUIRED",
     })
   : null;
 

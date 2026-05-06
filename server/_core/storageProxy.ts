@@ -11,43 +11,21 @@ export function registerStorageProxy(app: Express) {
       return;
     }
 
-    if (!ENV.geminiApiUrl || !ENV.geminiApiKey) {
-      // Local storage fallback
-      const uploadDir = path.join(process.cwd(), "uploads");
-      const filePath = path.join(uploadDir, key);
-
-      if (fs.existsSync(filePath)) {
-        res.sendFile(filePath);
-      } else {
-        res.status(404).send("File not found");
-      }
-      return;
-    }
-
     try {
-      const geminiUrl = new URL(
-        "v1/storage/presign/get",
-        ENV.geminiApiUrl.replace(/\/+$/, "") + "/",
-      );
-      geminiUrl.searchParams.set("path", key);
+      const { storageGetSignedUrl } = await import("../storage");
+      const url = await storageGetSignedUrl(key);
 
-      const geminiResp = await fetch(geminiUrl, {
-        headers: { Authorization: `Bearer ${ENV.geminiApiKey}` },
-      });
-
-      if (!geminiResp.ok) {
-        const body = await geminiResp.text().catch(() => "");
-        console.error(`[StorageProxy] gemini error: ${geminiResp.status} ${body}`);
-        res.status(502).send("Storage backend error");
-        return;
+      // If storage helper returns a local path, serve the file
+      if (url.startsWith("/manus-storage/")) {
+        const uploadDir = path.join(process.cwd(), "uploads");
+        const filePath = path.join(uploadDir, key);
+        if (fs.existsSync(filePath)) {
+          return res.sendFile(filePath);
+        }
+        return res.status(404).send("File not found");
       }
 
-      const { url } = (await geminiResp.json()) as { url: string };
-      if (!url) {
-        res.status(502).send("Empty signed URL from backend");
-        return;
-      }
-
+      // Otherwise redirect to signed URL (S3, R2, or Gemini)
       res.set("Cache-Control", "no-store");
       res.redirect(307, url);
     } catch (err) {

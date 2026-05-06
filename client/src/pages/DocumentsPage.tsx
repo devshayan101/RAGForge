@@ -111,26 +111,68 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
         setCurrentUploadingFile(file.name);
         setUploadProgress(0);
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('versionId', versionId.toString());
-
-        const uploadResponse = await axios.post('/api/upload', formData, {
-          onUploadProgress: (progressEvent) => {
-            if (progressEvent.total) {
-              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-              setUploadProgress(progress);
-            }
-          },
+        // 1. Get presigned URL (this also creates the DB record in 'uploading' status)
+        const { uploadUrl, fileKey } = await getPresignedUrlMutation.mutateAsync({
+          versionId,
+          filename: file.name,
+          fileType: file.type || 'application/octet-stream',
         });
 
-        const { fileUrl, fileKey } = uploadResponse.data;
+        // 2. Upload directly to S3/Storage
+        if (uploadUrl.startsWith('/manus-storage/')) {
+          // Local storage fallback via our proxy
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('versionId', versionId.toString());
+          formData.append('fileKey', fileKey); // Pass the key we want
 
-        // Create document record with the S3 file URL
+          await axios.post('/api/upload', formData, {
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                setUploadProgress(progress);
+              }
+            },
+          });
+        } else {
+          // Direct S3 upload
+          try {
+            await axios.put(uploadUrl, file, {
+              headers: {
+                'Content-Type': file.type || 'application/octet-stream',
+              },
+              onUploadProgress: (progressEvent) => {
+                if (progressEvent.total) {
+                  const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                  setUploadProgress(progress);
+                }
+              },
+            });
+          } catch (err: any) {
+            // If direct upload fails (likely CORS or network error), fallback to server upload
+            console.warn('Direct upload failed, falling back to server upload:', err.message);
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('versionId', versionId.toString());
+            formData.append('fileKey', fileKey);
+
+            await axios.post('/api/upload', formData, {
+              onUploadProgress: (progressEvent) => {
+                if (progressEvent.total) {
+                  const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                  setUploadProgress(progress);
+                }
+              },
+            });
+          }
+        }
+
+        // 3. Notify server that upload is complete and start ingestion
         await uploadDocumentMutation.mutateAsync({
           versionId,
           filename: file.name,
-          fileUrl,
+          fileUrl: uploadUrl.startsWith('/manus-storage/') ? uploadUrl : fileKey,
           fileSize: file.size,
           fileType: file.type || 'application/octet-stream',
         });
@@ -269,7 +311,8 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
                       <div className="flex items-center gap-2">
                         {doc.ingestionStatus === 'uploading' && (
                           <span className="text-xs bg-slate-100 text-slate-800 px-2 py-1 rounded flex items-center gap-1">
-                            <Loader2 className="w-3 h-3 animate-spin" /> Uploading
+                            <Loader2 className="w-3 h-3 animate-spin" /> 
+                            Uploading {doc.filename === currentUploadingFile ? `(${uploadProgress}%)` : ''}
                           </span>
                         )}
                         {doc.ingestionStatus === 'pending' && (
@@ -278,7 +321,7 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
                         {(doc.ingestionStatus === 'extracting' || doc.ingestionStatus === 'embedding') && (
                           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded flex items-center gap-1">
                             <Loader2 className="w-3 h-3 animate-spin" /> 
-                            {doc.ingestionStatus === 'extracting' ? 'Extracting' : 'Embedding'}
+                            {doc.ingestionStatus === 'extracting' ? 'Extracting' : 'Embedding'} ({doc.progress}%)
                           </span>
                         )}
                         {doc.ingestionStatus === 'ready' && (
@@ -321,6 +364,30 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Processing Progress Bar */}
+                  {['uploading', 'extracting', 'embedding'].includes(doc.ingestionStatus) && (
+                    <div className="mt-4 space-y-2">
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className="text-blue-600 animate-pulse">
+                          {doc.ingestionStatus === 'uploading' ? 'Uploading to storage...' : 
+                           doc.ingestionStatus === 'extracting' ? 'Extracting text...' : 'Generating embeddings...'}
+                        </span>
+                        <span className="font-mono">
+                          {doc.ingestionStatus === 'uploading' 
+                            ? (doc.filename === currentUploadingFile ? uploadProgress : 0) 
+                            : doc.progress}%
+                        </span>
+                      </div>
+                      <Progress 
+                        value={doc.ingestionStatus === 'uploading' 
+                          ? (doc.filename === currentUploadingFile ? uploadProgress : 0) 
+                          : doc.progress} 
+                        className="h-1.5 bg-blue-100" 
+                      />
+                    </div>
+                  )}
+
                   {doc.ingestionStatus === 'failed' && doc.ingestionError && (
                     <Alert className="mt-3" variant="destructive">
                       <AlertCircle className="h-4 w-4" />

@@ -62,9 +62,10 @@ export async function procesDocumentSync(
       filename,
       chunkSize,
       chunkOverlap,
-      async (status) => {
+      async (status, progress) => {
         if (await db.checkDocumentExists(documentId)) {
           await db.updateDocumentStatus(documentId, status);
+          await db.updateDocumentProgress(documentId, progress);
         }
       }
     );

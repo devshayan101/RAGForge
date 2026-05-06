@@ -102,10 +102,11 @@ export const ingestionWorker = connection ? new Worker(
         filename,
         chunkSize,
         chunkOverlap,
-        async (status) => {
+        async (status, progress) => {
           // Double check existence before updating status
           if (await db.checkDocumentExists(documentId)) {
             await db.updateDocumentStatus(documentId, status as any);
+            await db.updateDocumentProgress(documentId, progress);
           }
         },
         { forceOCR }

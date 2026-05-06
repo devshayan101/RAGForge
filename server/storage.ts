@@ -19,6 +19,8 @@ if (ENV.s3AccessKeyId && ENV.s3SecretAccessKey && ENV.s3Bucket) {
     },
     endpoint: ENV.s3Endpoint || undefined,
     forcePathStyle: !!ENV.s3Endpoint, // Often needed for R2/Minio
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
   });
 }
 
@@ -48,6 +50,7 @@ export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
+  tempFilePath?: string,
 ): Promise<{ key: string; url: string }> {
   const key = appendHashSuffix(normalizeKey(relKey));
 
@@ -58,6 +61,17 @@ export async function storagePut(
       Body: typeof data === "string" ? Buffer.from(data) : data,
       ContentType: contentType,
     }));
+
+    // If a temporary file path was provided, delete it after successful S3 upload
+    if (tempFilePath) {
+      try {
+        await fs.unlink(tempFilePath);
+        console.log(`[Storage] Deleted temporary server file: ${tempFilePath}`);
+      } catch (e) {
+        console.warn(`[Storage] Failed to delete temporary file ${tempFilePath}:`, e);
+      }
+    }
+
     return { key, url: `/manus-storage/${key}` };
   }
 
