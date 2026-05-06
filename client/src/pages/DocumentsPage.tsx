@@ -3,9 +3,11 @@ import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Trash2, Loader2, FileText, AlertCircle } from "lucide-react";
+import { Upload, Trash2, Loader2, FileText, AlertCircle, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
+import axios from "axios";
 
 interface DocumentsPageProps {
   versionId: number;
@@ -16,6 +18,8 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
 
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentUploadingFile, setCurrentUploadingFile] = useState<string | null>(null);
 
   const documentsQuery = trpc.documents.list.useQuery(
     { versionId },
@@ -70,23 +74,23 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
     setIsUploading(true);
     for (const file of validFiles) {
       try {
-        // Upload file to backend (which handles S3 upload server-side)
+        setCurrentUploadingFile(file.name);
+        setUploadProgress(0);
+
         const formData = new FormData();
         formData.append('file', file);
         formData.append('versionId', versionId.toString());
 
-        const uploadResponse = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
+        const uploadResponse = await axios.post('/api/upload', formData, {
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setUploadProgress(progress);
+            }
+          },
         });
 
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json().catch(() => ({}));
-          toast.error(`Failed to upload ${file.name}: ${errorData.error || 'Unknown error'}`);
-          continue;
-        }
-
-        const { fileUrl, fileKey } = await uploadResponse.json();
+        const { fileUrl, fileKey } = uploadResponse.data;
 
         // Create document record with the S3 file URL
         await uploadDocumentMutation.mutateAsync({
@@ -99,12 +103,15 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
 
         toast.success(`${file.name} uploaded successfully`);
         documentsQuery.refetch();
-      } catch (error) {
+      } catch (error: any) {
         console.error('Upload error:', error);
-        toast.error(`Failed to upload ${file.name}`);
+        const errorMessage = error.response?.data?.error || error.message || 'Unknown error';
+        toast.error(`Failed to upload ${file.name}: ${errorMessage}`);
       }
     }
     setIsUploading(false);
+    setUploadProgress(0);
+    setCurrentUploadingFile(null);
   };
 
   const handleDeleteDocument = async (documentId: number, filename: string) => {
@@ -163,6 +170,24 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
         </label>
         <p className="text-xs text-muted-foreground mt-4">Supported formats: PDF, DOCX, TXT</p>
       </div>
+
+      {/* Progress Bar for Active Upload */}
+      {isUploading && currentUploadingFile && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="pt-6 pb-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  <FileUp className="w-4 h-4 text-primary animate-bounce" />
+                  <span className="font-medium">Uploading {currentUploadingFile}...</span>
+                </div>
+                <span className="text-muted-foreground font-mono">{uploadProgress}%</span>
+              </div>
+              <Progress value={uploadProgress} className="h-2" />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Documents List */}
       <div>
