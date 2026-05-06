@@ -9,6 +9,7 @@ import crypto from "crypto";
 import { ingestionQueue } from "./queue";
 import { procesDocumentSync } from "./syncProcessor";
 import { getPresignedUploadUrl } from "./uploadHelper";
+import { storageList, storageDelete } from "./storage";
 
 // Helper to hash API keys
 function hashApiKey(key: string): string {
@@ -514,12 +515,109 @@ export const appRouter = router({
           throw new TRPCError({ code: "NOT_FOUND" });
         }
 
-        // Delete all chunks for this document
-        await db.deleteChunksByDocument(input.documentId);
-        // Delete the document
-        await db.deleteDocument(input.documentId);
+        const document = await db.getDocumentById(input.documentId);
+        if (document) {
+          // Delete from storage
+          await storageDelete(document.fileKey);
+          
+          // Delete all chunks for this document
+          await db.deleteChunksByDocument(input.documentId);
+          // Delete the document record
+          await db.deleteDocument(input.documentId);
+        }
 
         return { success: true };
+      }),
+
+    sync: protectedProcedure
+      .input(z.object({ versionId: z.number() }))
+      .mutation(async ({ ctx, input }) => {
+        const version = await db.getPipelineVersionById(input.versionId);
+        if (!version) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+        const pipeline = await db.getPipelineById(version.pipelineId);
+        const project = await db.getProjectById(pipeline!.projectId);
+        if (!project || project.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND" });
+        }
+
+        // 1. List files in storage for this version
+        const prefix = `documents/v${input.versionId}/`;
+        const storageKeys = await storageList(prefix);
+
+        // 2. Get documents already in database
+        const dbDocs = await db.getDocumentsByVersion(input.versionId);
+        const dbKeys = new Set(dbDocs.map((doc) => doc.fileKey));
+
+        const results = {
+          added: 0,
+          removed: 0,
+        };
+
+        // 3. Find files in storage but not in DB
+        for (const key of storageKeys) {
+          if (!dbKeys.has(key)) {
+            // Found a new file in storage!
+            // Extract filename from key: documents/v{id}/{hash}_{filename}
+            const basename = key.split("/").pop() || "";
+            const underscoreIndex = basename.indexOf("_");
+            const filename = underscoreIndex !== -1 ? basename.substring(underscoreIndex + 1) : basename;
+
+            // Create document record
+            const docId = await db.createDocument(
+              input.versionId,
+              filename,
+              key,
+              0, // Unknown size for now
+              "application/octet-stream"
+            );
+
+            await db.updateDocumentStatus(docId, "pending");
+
+            // Add to ingestion queue
+            if (ingestionQueue) {
+              await ingestionQueue.add("ingest", {
+                documentId: docId,
+                versionId: input.versionId,
+                fileUrl: `/manus-storage/${key}`,
+                filename: filename,
+                fileType: "application/octet-stream",
+                chunkSize: version.config.chunkSize,
+                chunkOverlap: version.config.chunkOverlap,
+              });
+            } else {
+              await procesDocumentSync(
+                docId,
+                input.versionId,
+                `/manus-storage/${key}`,
+                filename,
+                "application/octet-stream",
+                version.config.chunkSize,
+                version.config.chunkOverlap
+              );
+            }
+
+            results.added++;
+          }
+          dbKeys.delete(key);
+        }
+
+        // 4. Remaining keys in dbKeys are in DB but NOT in storage
+        for (const key of dbKeys) {
+          const doc = dbDocs.find((d) => d.fileKey === key);
+          if (doc) {
+            // Delete chunks and document
+            await db.deleteChunksByDocument(doc.id);
+            await db.deleteDocument(doc.id);
+            results.removed++;
+          }
+        }
+
+        return {
+          success: true,
+          ...results,
+        };
       }),
   }),
 

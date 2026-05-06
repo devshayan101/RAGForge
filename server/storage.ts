@@ -6,7 +6,7 @@ import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { ENV } from "./_core/env";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
 
 let s3Client: S3Client | null = null;
@@ -187,4 +187,80 @@ export async function storageGetBuffer(relKey: string): Promise<Buffer> {
   if (!resp.ok) throw new Error(`Failed to fetch from storage: ${resp.statusText}`);
   const arrayBuffer = await resp.arrayBuffer();
   return Buffer.from(arrayBuffer);
+}
+
+export async function storageList(prefix: string): Promise<string[]> {
+  const normPrefix = normalizeKey(prefix);
+
+  if (s3Client) {
+    const command = new ListObjectsV2Command({
+      Bucket: ENV.s3Bucket,
+      Prefix: normPrefix,
+    });
+    const response = await s3Client.send(command);
+    return (response.Contents || []).map((obj) => obj.Key!).filter(Boolean);
+  }
+
+  const config = getGeminiConfig();
+  if (!config) {
+    // Local storage fallback
+    const uploadDir = path.join(process.cwd(), "uploads");
+    const fullPath = path.join(uploadDir, normPrefix);
+    try {
+      const files = await fs.readdir(fullPath, { recursive: true });
+      return files.map((f) => path.join(normPrefix, f).replace(/\\/g, "/"));
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // Gemini storage fallback
+  const listUrl = new URL("v1/storage/list", config.geminiUrl + "/");
+  listUrl.searchParams.set("prefix", normPrefix);
+
+  const resp = await fetch(listUrl, {
+    headers: { Authorization: `Bearer ${config.geminiKey}` },
+  });
+
+  if (!resp.ok) {
+    return [];
+  }
+
+  const { keys } = (await resp.json()) as { keys: string[] };
+  return keys || [];
+}
+
+export async function storageDelete(relKey: string): Promise<void> {
+  const key = normalizeKey(relKey);
+
+  if (s3Client) {
+    const command = new DeleteObjectCommand({
+      Bucket: ENV.s3Bucket,
+      Key: key,
+    });
+    await s3Client.send(command);
+    return;
+  }
+
+  const config = getGeminiConfig();
+  if (!config) {
+    // Local storage fallback
+    const uploadDir = path.join(process.cwd(), "uploads");
+    const filePath = path.join(uploadDir, key);
+    try {
+      await fs.unlink(filePath);
+    } catch (e) {
+      // Ignore if file doesn't exist
+    }
+    return;
+  }
+
+  // Gemini storage fallback
+  const deleteUrl = new URL("v1/storage/delete", config.geminiUrl + "/");
+  deleteUrl.searchParams.set("path", key);
+
+  await fetch(deleteUrl, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${config.geminiKey}` },
+  });
 }

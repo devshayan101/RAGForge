@@ -297,6 +297,19 @@ export async function createChunk(documentId: number, sequenceIndex: number, tex
   });
 }
 
+export async function createChunks(values: { documentId: number; sequenceIndex: number; text: string; pageNo?: number; embeddingJson?: string }[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (values.length === 0) return;
+  
+  // Split into batches of 100 to avoid packet size limits
+  const BATCH_SIZE = 100;
+  for (let i = 0; i < values.length; i += BATCH_SIZE) {
+    const batch = values.slice(i, i + BATCH_SIZE);
+    await db.insert(chunks).values(batch);
+  }
+}
+
 export async function getChunksByDocument(documentId: number) {
   const db = await getDb();
   if (!db) return [];

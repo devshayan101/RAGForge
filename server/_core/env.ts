@@ -15,5 +15,6 @@ export const ENV = {
   s3Bucket: process.env.S3_BUCKET ?? "",
   s3Endpoint: process.env.S3_ENDPOINT ?? "", // Required for Cloudflare R2
   s3Region: process.env.S3_REGION ?? "auto",
-  maxFileSize: parseInt(process.env.MAX_FILE_SIZE ?? (100 * 1024 * 1024).toString()),
+  maxFileSize: parseInt(process.env.MAX_FILE_SIZE ?? (500 * 1024 * 1024).toString()),
+  redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
 };

@@ -51,15 +51,14 @@ export async function procesDocumentSync(
     );
     
     // 3. Store chunks and embeddings
-    for (let i = 0; i < chunks.length; i++) {
-      await db.createChunk(
-        documentId,
-        i,
-        chunks[i],
-        undefined, // pageNo not implemented in processor yet
-        JSON.stringify(embeddings[i])
-      );
-    }
+    const chunkData = chunks.map((text, i) => ({
+      documentId,
+      sequenceIndex: i,
+      text,
+      embeddingJson: JSON.stringify(embeddings[i]),
+    }));
+    
+    await db.createChunks(chunkData);
     
     // 4. Update document status and chunk count
     await db.updateDocumentChunkCount(documentId, chunks.length);

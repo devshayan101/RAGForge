@@ -1,9 +1,9 @@
 import { useUser } from "@clerk/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Trash2, Loader2, FileText, AlertCircle, FileUp } from "lucide-react";
+import { Upload, Trash2, Loader2, FileText, AlertCircle, FileUp, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
@@ -37,6 +37,25 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
   const uploadDocumentMutation = trpc.documents.upload.useMutation();
   const deleteDocumentMutation = trpc.documents.delete.useMutation();
   const getPresignedUrlMutation = trpc.documents.getPresignedUrl.useMutation();
+  const syncDocumentsMutation = trpc.documents.sync.useMutation();
+
+  const handleSyncDocuments = async (silent = false) => {
+    try {
+      const result = await syncDocumentsMutation.mutateAsync({ versionId });
+      documentsQuery.refetch();
+      if (!silent) {
+        toast.success(`Sync complete: Added ${result.added}, Removed ${result.removed}`);
+      }
+    } catch (error) {
+      if (!silent) {
+        toast.error("Failed to sync documents");
+      }
+    }
+  };
+
+  useEffect(() => {
+    handleSyncDocuments(true);
+  }, [versionId]);
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
@@ -125,13 +144,29 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
     }
   };
 
+
   if (!user) return null;
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Documents</h2>
-        <p className="text-muted-foreground mt-1">Upload and manage documents for this pipeline version</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Documents</h2>
+          <p className="text-muted-foreground mt-1">Upload and manage documents for this pipeline version</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => handleSyncDocuments(false)}
+          disabled={syncDocumentsMutation.isPending}
+        >
+          {syncDocumentsMutation.isPending ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <RefreshCw className="w-4 h-4 mr-2" />
+          )}
+          Sync with Storage
+        </Button>
       </div>
 
       {/* Upload Area */}

@@ -1,11 +1,12 @@
 import { Queue, Worker, Job } from "bullmq";
 import Redis from "ioredis";
+import { ENV } from "./_core/env";
 import { processDocument } from "./documentProcessor";
 import * as db from "./db";
 import fs from "fs/promises";
 import path from "path";
 
-const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
+const REDIS_URL = ENV.redisUrl;
 
 // Create Redis connection with error handling
 let connection: Redis | null = null;
@@ -15,11 +16,11 @@ try {
   connection = new Redis(REDIS_URL, { 
     maxRetriesPerRequest: null,
     retryStrategy: (times) => {
-      if (times > 3) {
-        console.warn("[Queue] Redis connection failed after 3 retries. Queue will be unavailable.");
+      if (times > 20) {
+        console.warn("[Queue] Redis connection failed after 20 retries. Queue will be unavailable.");
         return null;
       }
-      return Math.min(times * 50, 2000);
+      return Math.min(times * 100, 3000);
     },
     lazyConnect: true,
   });
@@ -87,15 +88,14 @@ export const ingestionWorker = connection ? new Worker(
       );
       
       // 3. Store chunks and embeddings
-      for (let i = 0; i < chunks.length; i++) {
-        await db.createChunk(
-          documentId,
-          i,
-          chunks[i],
-          undefined, // pageNo not implemented in processor yet
-          JSON.stringify(embeddings[i])
-        );
-      }
+      const chunkData = chunks.map((text, i) => ({
+        documentId,
+        sequenceIndex: i,
+        text,
+        embeddingJson: JSON.stringify(embeddings[i]),
+      }));
+      
+      await db.createChunks(chunkData);
       
       // 4. Update document status and chunk count
       await db.updateDocumentChunkCount(documentId, chunks.length);
@@ -108,12 +108,20 @@ export const ingestionWorker = connection ? new Worker(
       throw error;
     }
   },
-  { connection: connection! }
+  { 
+    connection: connection!,
+    lockDuration: 600000, // 10 minutes
+    stalledInterval: 300000, // 5 minutes
+    maxStalledCount: 3
+  }
 ) : null;
 
 if (ingestionWorker) {
   ingestionWorker.on("failed", (job, err) => {
     console.error(`[Queue] Job ${job?.id} failed:`, err);
+  });
+  ingestionWorker.on("error", (err) => {
+    console.error(`[Queue] Worker error:`, err);
   });
 }
 
