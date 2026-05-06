@@ -63,3 +63,35 @@ sequenceDiagram
     TRPC-->>Frontend: Response + Sources
     Frontend-->>User: Display Answer & Citations
 ```
+
+-----------------------------------------
+## How system responds to a query:
+
+The pipeline searches across all documents that are part of the specific pipeline version you are querying, but it does so in an intelligent way called Vector Search.
+
+Here is a breakdown of exactly how it responds to a query:
+
+1. The Search Scope
+When you send a query, the system identifies the Current Version of your pipeline. It then searches through every single document that has been successfully ingested into that version. It does not skip documents; it ensures the entire knowledge base for that version is considered.
+
+2. How it Processes the Query (The "Vector" Secret)
+The system doesn't just look for exact keyword matches. Instead, it follows these steps:
+
+Query Embedding: Your question is converted into a high-dimensional mathematical vector (using gemini-embedding-2). This vector represents the meaning of your question.
+Cosine Similarity: The system compares your query vector against the vectors of every text "chunk" from all your documents. It calculates a "similarity score" for each piece of text.
+Ranking: It ranks all chunks across all documents from most relevant to least relevant.
+
+3. Generating the Response
+Once the search is complete:
+
+Context Selection: It picks the Top-K most relevant chunks (usually the top 3 for chat or top 5 for search).
+Grounded Answer: These specific chunks are sent to the LLM (Gemini) as "Context." The AI is instructed: "Answer the user's question ONLY using this provided context."
+Sources: The system returns the AI's answer along with the specific document names and page numbers where it found the information.
+
+4. Summary of Implementation
+Technically, the backend performs a "brute-force" similarity search over the version's data:
+
+It fetches all chunks for all documents in the version from the database.
+It calculates the Cosine Similarity for each one in memory.
+It sorts them and uses the best ones to "prime" the AI.
+This ensures that even if you have dozens of documents, the AI "sees" the most relevant parts of all of them before it speaks.

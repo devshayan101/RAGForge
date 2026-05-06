@@ -309,24 +309,13 @@ async function withRetry<T>(
 
       if (!isRateLimit) throw error;
 
-      // Try to parse retryDelay from Google error if available
-      let delay = initialDelay * Math.pow(2, attempt - 1);
-
-      try {
-        // Look for "Please retry in X.Xs" or similar in error message
-        const match = error.message?.match(/retry in ([\d.]+)s/);
-        if (match) {
-          delay = parseFloat(match[1]) * 1000 + 1000; // Add 1s buffer
-        }
-      } catch (e) {
-        // Ignore parsing errors
-      }
-
-      delay = Math.min(delay, maxDelay);
+      // When rate limit is hit, wait for 60s as requested
+      const delay = 60000;
+      
       console.warn(
-        `[LLM] Rate limited. Retrying in ${Math.round(
+        `[LLM] Rate limited. Waiting for ${Math.round(
           delay / 1000
-        )}s (attempt ${attempt}/${maxRetries})...`
+        )}s before retry (attempt ${attempt}/${maxRetries})...`
       );
       await sleep(delay);
     }
@@ -402,89 +391,93 @@ export async function embedTexts(texts: string[], model = "gemini-embedding-2"):
   assertApiKey();
   const baseUrl = resolveBaseUrl();
   const BATCH_SIZE = 100;
-  const BATCH_DELAY = 600; // 600ms delay between batches to stay under 100 RPM limit
+  const CONCURRENCY = 10; // Process 10 batches in parallel to stay well within 2200 RPM but improve speed significantly
 
-  // Handle Google native API
-  if (baseUrl.includes("generativelanguage.googleapis.com")) {
-    const allEmbeddings: number[][] = [];
-
-    for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-      // Add a small delay between batches to stay under the 100 requests per minute limit
-      if (i > 0) await sleep(BATCH_DELAY);
-
-      const batch = texts.slice(i, i + BATCH_SIZE);
-      const url = `${baseUrl}/v1beta/models/${model}:batchEmbedContents?key=${ENV.geminiApiKey}`;
-      
-      console.log(`[LLM] Embedding batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(texts.length / BATCH_SIZE)} (${batch.length} texts)`);
-      
-      const batchEmbeddings = await withRetry(async () => {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            requests: batch.map(text => ({
-              model: `models/${model}`,
-              content: { parts: [{ text }] },
-              output_dimensionality: 768, // Maintain compatibility with 768-dim vector expectations
-            })),
-          }),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          const error: any = new Error(`Google Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
-          error.status = response.status;
-          throw error;
-        }
-
-        const json = await response.json();
-        if (!json.embeddings) {
-          throw new Error(`Invalid Google embedding response: ${JSON.stringify(json)}`);
-        }
-        return json.embeddings.map((item: any) => item.values);
-      });
-
-      allEmbeddings.push(...batchEmbeddings);
-    }
-
-    return allEmbeddings;
-  }
-
-  // Fallback for OpenAI-compatible proxies (Forge, Ollama, etc.)
-  const allEmbeddings: number[][] = [];
+  // Split texts into batches
+  const batches: string[][] = [];
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-    if (i > 0) await sleep(BATCH_DELAY);
-    
-    const batch = texts.slice(i, i + BATCH_SIZE);
-    
-    const batchEmbeddings = await withRetry(async () => {
-      const response = await fetch(resolveEmbedUrl(), {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${ENV.geminiApiKey}`,
-        },
-        body: JSON.stringify({
-          model,
-          input: batch,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        const error: any = new Error(`Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
-        error.status = response.status;
-        throw error;
-      }
-
-      const json = await response.json();
-      return json.data.map((item: any) => item.embedding);
-    });
-
-    allEmbeddings.push(...batchEmbeddings);
+    batches.push(texts.slice(i, i + BATCH_SIZE));
   }
-  
+
+  const allEmbeddings: number[][] = new Array(texts.length);
+
+  // Process batches with concurrency
+  for (let i = 0; i < batches.length; i += CONCURRENCY) {
+    const concurrentBatchSlice = batches.slice(i, i + CONCURRENCY);
+    
+    await Promise.all(
+      concurrentBatchSlice.map(async (batch, sliceIdx) => {
+        const batchIdx = i + sliceIdx;
+        const globalOffset = batchIdx * BATCH_SIZE;
+
+        console.log(`[LLM] Embedding batch ${batchIdx + 1}/${batches.length} (${batch.length} texts)`);
+
+        let batchResults: number[][];
+
+        if (baseUrl.includes("generativelanguage.googleapis.com")) {
+          const url = `${baseUrl}/v1beta/models/${model}:batchEmbedContents?key=${ENV.geminiApiKey}`;
+          batchResults = await withRetry(async () => {
+            const response = await fetch(url, {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+              },
+              body: JSON.stringify({
+                requests: batch.map(text => ({
+                  model: `models/${model}`,
+                  content: { parts: [{ text }] },
+                  output_dimensionality: 768,
+                })),
+              }),
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              const error: any = new Error(`Google Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
+              error.status = response.status;
+              throw error;
+            }
+
+            const json = await response.json();
+            if (!json.embeddings) {
+              throw new Error(`Invalid Google embedding response: ${JSON.stringify(json)}`);
+            }
+            return json.embeddings.map((item: any) => item.values);
+          });
+        } else {
+          // Fallback for OpenAI-compatible proxies
+          batchResults = await withRetry(async () => {
+            const response = await fetch(resolveEmbedUrl(), {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                authorization: `Bearer ${ENV.geminiApiKey}`,
+              },
+              body: JSON.stringify({
+                model,
+                input: batch,
+              }),
+            });
+
+            if (!response.ok) {
+              const errorText = await response.text();
+              const error: any = new Error(`Embedding failed: ${response.status} ${response.statusText} – ${errorText}`);
+              error.status = response.status;
+              throw error;
+            }
+
+            const json = await response.json();
+            return json.data.map((item: any) => item.embedding);
+          });
+        }
+
+        // Place results in the correct position in the final array
+        for (let j = 0; j < batchResults.length; j++) {
+          allEmbeddings[globalOffset + j] = batchResults[j];
+        }
+      })
+    );
+  }
+
   return allEmbeddings;
 }

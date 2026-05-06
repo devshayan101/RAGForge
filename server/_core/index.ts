@@ -35,8 +35,8 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.use(express.json({ limit: ENV.maxFileSize }));
+  app.use(express.urlencoded({ limit: ENV.maxFileSize, extended: true }));
   app.use(clerkMiddleware({ publishableKey: ENV.clerkPublishableKey, secretKey: ENV.clerkSecretKey }));
   registerStorageProxy(app);
   registerUploadHandler(app);

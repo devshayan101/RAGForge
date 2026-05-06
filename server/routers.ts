@@ -647,7 +647,7 @@ export const appRouter = router({
           messages: [
             {
               role: "system",
-              content: "You are a helpful assistant. Answer the user's question based on the provided context. If the answer is not in the context, say so. Use markdown for formatting.",
+              content: "You are a helpful assistant. Answer the user's question based on the provided context. If the answer is not in the context, say so. Use markdown for formatting. IMPORTANT: Respond in the same language as the user's question.",
             },
             {
               role: "user",

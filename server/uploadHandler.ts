@@ -9,12 +9,13 @@ import multer from "multer";
 import { storagePut } from "./storage";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
+import { ENV } from "./_core/env";
 
 // Configure multer for in-memory file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
+    fileSize: ENV.maxFileSize,
   },
   fileFilter: (req, file, cb) => {
     const ext = file.originalname.split(".").pop()?.toLowerCase();
