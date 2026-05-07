@@ -79,7 +79,8 @@ export function registerUploadHandler(app: Express) {
         fileKey,
         buffer,
         file.mimetype || "application/octet-stream",
-        file.path // Pass the path so storagePut can delete it after S3 upload
+        file.path,
+        { appendHash: !req.body.fileKey } // Skip hashing if key was already provided (presigned flow)
       );
 
       res.json({

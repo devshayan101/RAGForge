@@ -394,11 +394,15 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   return (await response.json()) as InvokeResult;
 }
 
-export async function embedTexts(texts: string[], model = "gemini-embedding-2"): Promise<number[][]> {
+export async function embedTexts(
+  texts: string[],
+  model = "gemini-embedding-2",
+  onProgress?: (progress: number) => Promise<void>
+): Promise<number[][]> {
   assertApiKey();
   const baseUrl = resolveBaseUrl();
   const BATCH_SIZE = 100;
-  const CONCURRENCY = 10; // Process 10 batches in parallel to stay well within 2200 RPM but improve speed significantly
+  const CONCURRENCY = 10; // Process 10 batches in parallel
 
   // Split texts into batches
   const batches: string[][] = [];
@@ -407,6 +411,7 @@ export async function embedTexts(texts: string[], model = "gemini-embedding-2"):
   }
 
   const allEmbeddings: number[][] = new Array(texts.length);
+  let completedTexts = 0;
 
   // Process batches with concurrency
   for (let i = 0; i < batches.length; i += CONCURRENCY) {
@@ -481,6 +486,12 @@ export async function embedTexts(texts: string[], model = "gemini-embedding-2"):
         // Place results in the correct position in the final array
         for (let j = 0; j < batchResults.length; j++) {
           allEmbeddings[globalOffset + j] = batchResults[j];
+        }
+
+        completedTexts += batch.length;
+        if (onProgress) {
+          const progress = Math.round((completedTexts / texts.length) * 100);
+          await onProgress(progress);
         }
       })
     );

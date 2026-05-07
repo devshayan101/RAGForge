@@ -14,16 +14,23 @@ export class OCRRequiredError extends Error {
   }
 }
 
-/**
- * Extract text from different file types
- */
 export async function extractTextFromFile(
   fileBuffer: Buffer,
   fileType: string,
   filename: string,
   options: { forceOCR?: boolean } = {}
 ): Promise<string> {
-  switch (fileType.toLowerCase()) {
+  let effectiveType = fileType.toLowerCase();
+  
+  // If type is generic, try to guess from filename
+  if (effectiveType === "application/octet-stream" || !effectiveType) {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    if (ext === "pdf") effectiveType = "application/pdf";
+    else if (ext === "docx") effectiveType = "docx";
+    else if (ext === "txt") effectiveType = "text/plain";
+  }
+
+  switch (effectiveType) {
     case "text/plain":
     case "txt":
       return fileBuffer.toString("utf-8");
@@ -175,12 +182,15 @@ export function chunkText(
 /**
  * Generate embeddings for text chunks using LLM
  */
-export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+export async function generateEmbeddings(
+  texts: string[],
+  onProgress?: (progress: number) => Promise<void>
+): Promise<number[][]> {
   if (texts.length === 0) return [];
   
   // Use a real embedding model (Option 1: Google AI Studio)
   // We use gemini-embedding-2 which is the current state-of-the-art model.
-  return await embedTexts(texts, "gemini-embedding-2");
+  return await embedTexts(texts, "gemini-embedding-2", onProgress);
 }
 
 /**
@@ -242,19 +252,11 @@ export async function processDocument(
   // 3. Generate embeddings for chunks with progress
   if (onStatus) await onStatus("embedding", 0);
   
-  const embeddings: number[][] = [];
-  const BATCH_SIZE = 100; // Consistent with db batching
-  
-  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
-    const batch = chunks.slice(i, i + BATCH_SIZE);
-    const batchEmbeddings = await generateEmbeddings(batch);
-    embeddings.push(...batchEmbeddings);
-    
+  const embeddings = await generateEmbeddings(chunks, async (progress) => {
     if (onStatus) {
-      const progress = Math.round((embeddings.length / chunks.length) * 100);
       await onStatus("embedding", progress);
     }
-  }
+  });
 
   return { chunks, embeddings };
 }

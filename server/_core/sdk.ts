@@ -261,7 +261,7 @@ class SDKServer {
       throw ForbiddenError("Unauthorized: Please login");
     }
 
-    const signedInAt = new Date();
+    const signedInAt = new Date().toISOString();
     let user = await db.getUserByOpenId(userId);
 
     // If user not in DB, sync from Clerk automatically

@@ -1,6 +1,6 @@
 import { eq, desc, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users, projects, pipelines, pipelineVersions, documents, chunks, apiKeys, usageLogs } from "../drizzle/schema";
+import { InsertUser, InsertDocument, users, projects, pipelines, pipelineVersions, documents, chunks, apiKeys, usageLogs } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -61,11 +61,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
 
     if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
+      values.lastSignedIn = new Date().toISOString();
     }
 
     if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
+      updateSet.lastSignedIn = new Date().toISOString();
     }
 
     await db.insert(users).values(values).onDuplicateKeyUpdate({
@@ -243,7 +243,7 @@ export async function getDocumentByFileKey(fileKey: string) {
   return result[0];
 }
 
-export async function updateDocument(documentId: number, data: any) {
+export async function updateDocument(documentId: number, data: Partial<InsertDocument>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   return db.update(documents).set(data).where(eq(documents.id, documentId));
@@ -259,15 +259,16 @@ export async function createDocument(versionId: number, filename: string, fileKe
     fileSize,
     fileType,
     ingestionStatus: "uploading",
+    progress: 0,
   });
   return result[0].insertId as number;
 }
 
-export async function updateDocumentStatus(documentId: number, status: "uploading" | "pending" | "extracting" | "embedding" | "ready" | "failed", error?: string) {
+export async function updateDocumentStatus(documentId: number, status: "uploading" | "pending" | "extracting" | "embedding" | "ready" | "failed" | "ocr_required", error?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const updates: any = { ingestionStatus: status };
-  if (status === "ready") updates.completedAt = new Date();
+  const updates: Partial<InsertDocument> = { ingestionStatus: status };
+  if (status === "ready") updates.completedAt = new Date().toISOString();
   if (error) updates.ingestionError = error;
   return db.update(documents).set(updates).where(eq(documents.id, documentId));
 }
@@ -359,7 +360,7 @@ export async function createApiKey(projectId: number, hashedKey: string, keyPref
 export async function revokeApiKey(apiKeyId: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return db.update(apiKeys).set({ revokedAt: new Date() }).where(eq(apiKeys.id, apiKeyId));
+  return db.update(apiKeys).set({ revokedAt: new Date().toISOString() }).where(eq(apiKeys.id, apiKeyId));
 }
 
 export async function getApiKeyByHash(hashedKey: string) {

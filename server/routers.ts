@@ -10,6 +10,7 @@ import { ingestionQueue } from "./queue";
 import { procesDocumentSync } from "./syncProcessor";
 import { getPresignedUploadUrl } from "./uploadHelper";
 import { storageList, storageDelete } from "./storage";
+import { PipelineConfig } from "../shared/types";
 
 // Helper to hash API keys
 function hashApiKey(key: string): string {
@@ -483,8 +484,8 @@ export const appRouter = router({
             fileUrl: input.fileUrl,
             filename: input.filename,
             fileType: fileType,
-            chunkSize: version.config.chunkSize,
-            chunkOverlap: version.config.chunkOverlap,
+            chunkSize: (version.config as PipelineConfig).chunkSize,
+            chunkOverlap: (version.config as PipelineConfig).chunkOverlap,
           }, { jobId: `doc-${docId}` });
         } else {
           console.warn("[Documents] Redis unavailable. Processing document synchronously.");
@@ -494,8 +495,8 @@ export const appRouter = router({
             input.fileUrl,
             input.filename,
             fileType,
-            version.config.chunkSize,
-            version.config.chunkOverlap
+            (version.config as PipelineConfig).chunkSize,
+            (version.config as PipelineConfig).chunkOverlap
           );
         }
 
@@ -591,8 +592,8 @@ export const appRouter = router({
                 fileUrl: `/manus-storage/${key}`,
                 filename: filename,
                 fileType: "application/octet-stream",
-                chunkSize: version.config.chunkSize,
-                chunkOverlap: version.config.chunkOverlap,
+                chunkSize: (version.config as PipelineConfig).chunkSize,
+                chunkOverlap: (version.config as PipelineConfig).chunkOverlap,
               }, { jobId: `doc-${docId}` });
             } else {
               await procesDocumentSync(
@@ -601,8 +602,8 @@ export const appRouter = router({
                 `/manus-storage/${key}`,
                 filename,
                 "application/octet-stream",
-                version.config.chunkSize,
-                version.config.chunkOverlap
+                (version.config as PipelineConfig).chunkSize,
+                (version.config as PipelineConfig).chunkOverlap
               );
             }
 
@@ -655,8 +656,8 @@ export const appRouter = router({
             fileUrl: `/manus-storage/${document.fileKey}`,
             filename: document.filename,
             fileType: document.fileType,
-            chunkSize: version!.config.chunkSize,
-            chunkOverlap: version!.config.chunkOverlap,
+            chunkSize: (version!.config as PipelineConfig).chunkSize,
+            chunkOverlap: (version!.config as PipelineConfig).chunkOverlap,
             forceOCR: true,
           }, { jobId: `doc-${document.id}-${Date.now()}` }); // Use unique jobId to bypass deduplication
         }

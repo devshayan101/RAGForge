@@ -30,7 +30,7 @@ This document explains the step-by-step process of how a user query is handled b
 
 ### B. LLM Invocation
 **File:** `server/_core/llm.ts`
-- The system calls `invokeLLM` with the currently configured model (e.g., `gemini-1.5-flash`).
+- The system calls `invokeLLM` with the currently configured model (e.g., `gemma-4-31b-it`).
 - **Prompt Structure**:
   - **System Role**: "You are a helpful assistant. Answer the user's question based on the provided context..."
   - **User Role**: "Context: [RETRIEVED_TEXT] \n\n Question: [USER_QUERY]"
@@ -95,3 +95,36 @@ It fetches all chunks for all documents in the version from the database.
 It calculates the Cosine Similarity for each one in memory.
 It sorts them and uses the best ones to "prime" the AI.
 This ensures that even if you have dozens of documents, the AI "sees" the most relevant parts of all of them before it speaks.
+
+---
+
+## Document Ingestion & Embedding Process
+
+This section details how documents are processed and prepared for the RAG pipeline.
+
+### 1. Ingestion Lifecycle
+Documents pass through several granular stages tracked in the database:
+- **`uploading`**: File is being transferred to S3/R2 storage.
+- **`pending`**: File is in the queue waiting for processing.
+- **`extracting`**: Text is being extracted from the file (PDF, DOCX, TXT).
+- **`embedding`**: Text chunks are being converted into vector representations.
+- **`ready`**: Document is fully processed and available for querying.
+- **`failed`**: An error occurred during processing (error details are logged).
+
+### 2. Optimized Embedding Pipeline
+To handle large documents efficiently while staying within API limits, the embedding process is highly optimized:
+
+- **Parallel Batching**: Instead of processing chunks sequentially, the system uses a **concurrency of 10 parallel batches**. Each batch contains up to 100 text chunks.
+- **Maximum Throughput**: By sending 10 requests to `batchEmbedContents` simultaneously, the system can process thousands of chunks in seconds, leveraging high-RPM tiers (up to 2200 RPM).
+- **Rate Limit Resilience**: The system implements **exponential backoff**. If a rate limit (429) or "Resource Exhausted" error is hit, it automatically waits (typically 60s) before retrying, ensuring stability even on free-tier quotas.
+- **Granular Progress**: Progress is reported back to the UI for every individual batch that completes, providing real-time feedback during long processing tasks.
+
+### 3. Smart Extraction & OCR
+- **Mime-Type Resilience**: If a file is uploaded with a generic `application/octet-stream` type, the system intelligently falls back to extension-based detection (PDF, DOCX, TXT).
+- **Low-Content Detection**: For PDFs, the system checks the average text density per page. If it's too low (e.g., scanned images), it flags the document as `ocr_required`.
+- **LLM-Powered OCR**: If forced or confirmed by the user, the system uses a vision-capable LLM (e.g., `gemini-2.5-flash`) to perform high-quality OCR on scanned pages before chunking.
+
+### 4. Storage & Persistence
+- **Chunking**: Text is split with configurable `chunkSize` and `overlap` to maintain context across chunk boundaries.
+- **Vector Storage**: Embeddings (768-dimensional vectors) are stored as JSON in the database, allowing for fast cosine similarity search during retrieval.
+- **Queue Management**: All heavy processing is offloaded to a background queue (`BullMQ` with Redis) to ensure the web server remains responsive.

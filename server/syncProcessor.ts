@@ -31,20 +31,12 @@ export async function procesDocumentSync(
     // 1. Fetch file content
     let buffer: Buffer;
     try {
-      if (fileUrl.startsWith("/manus-storage/")) {
-        const key = fileUrl.replace("/manus-storage/", "");
-        const path = await import("path");
-        const fs = await import("fs/promises");
-        const filePath = path.join(process.cwd(), "uploads", key);
-        buffer = await fs.readFile(filePath);
-      } else {
-        const response = await fetch(fileUrl);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch file: ${response.statusText}`);
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        buffer = Buffer.from(arrayBuffer);
-      }
+      const { storageGetBuffer } = await import("./storage");
+      const storageKey = fileUrl.startsWith("/manus-storage/") 
+        ? fileUrl.replace("/manus-storage/", "") 
+        : fileUrl;
+        
+      buffer = await storageGetBuffer(storageKey);
     } catch (error: any) {
       // Check if document was deleted while fetching
       const stillExists = await db.checkDocumentExists(documentId);

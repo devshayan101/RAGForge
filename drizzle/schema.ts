@@ -1,8 +1,8 @@
 import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, varchar, timestamp, text, mysqlEnum, json } from "drizzle-orm/mysql-core"
-import { sql } from "drizzle-orm"
+import { sql, InferSelectModel, InferInsertModel } from "drizzle-orm"
 
 export const apiKeys = mysqlTable("apiKeys", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	projectId: int().notNull(),
 	hashedKey: varchar({ length: 255 }).notNull(),
 	keyPrefix: varchar({ length: 20 }).notNull(),
@@ -17,7 +17,7 @@ export const apiKeys = mysqlTable("apiKeys", {
 ]);
 
 export const chunks = mysqlTable("chunks", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	documentId: int().notNull(),
 	sequenceIndex: int().notNull(),
 	text: text().notNull(),
@@ -30,7 +30,7 @@ export const chunks = mysqlTable("chunks", {
 ]);
 
 export const documents = mysqlTable("documents", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	versionId: int().notNull(),
 	filename: varchar({ length: 255 }).notNull(),
 	fileKey: varchar({ length: 512 }).notNull(),
@@ -39,6 +39,7 @@ export const documents = mysqlTable("documents", {
 	contentSummary: text(),
 	chunkCount: int().default(0).notNull(),
 	ingestionStatus: mysqlEnum(['uploading','pending','extracting','embedding','ready','failed','ocr_required']).default('uploading').notNull(),
+	progress: int().default(0).notNull(),
 	ingestionError: text(),
 	uploadedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	completedAt: timestamp({ mode: 'string' }),
@@ -48,7 +49,7 @@ export const documents = mysqlTable("documents", {
 ]);
 
 export const pipelineVersions = mysqlTable("pipelineVersions", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	pipelineId: int().notNull(),
 	versionNumber: int().notNull(),
 	config: json().notNull(),
@@ -59,7 +60,7 @@ export const pipelineVersions = mysqlTable("pipelineVersions", {
 ]);
 
 export const pipelines = mysqlTable("pipelines", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	projectId: int().notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	currentVersionId: int(),
@@ -71,7 +72,7 @@ export const pipelines = mysqlTable("pipelines", {
 ]);
 
 export const projects = mysqlTable("projects", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	userId: int().notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
@@ -83,7 +84,7 @@ export const projects = mysqlTable("projects", {
 ]);
 
 export const usageLogs = mysqlTable("usageLogs", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	pipelineId: int().notNull(),
 	projectId: int().notNull(),
 	eventType: mysqlEnum(['query','document_upload','embedding_generated']).notNull(),
@@ -100,7 +101,7 @@ export const usageLogs = mysqlTable("usageLogs", {
 ]);
 
 export const users = mysqlTable("users", {
-	id: int().autoincrement().notNull(),
+	id: int().autoincrement().primaryKey().notNull(),
 	openId: varchar({ length: 64 }).notNull(),
 	name: text(),
 	email: varchar({ length: 320 }),
@@ -113,3 +114,14 @@ export const users = mysqlTable("users", {
 (table) => [
 	index("users_openId_unique").on(table.openId),
 ]);
+
+export type User = InferSelectModel<typeof users>;
+export type InsertUser = InferInsertModel<typeof users>;
+export type Document = InferSelectModel<typeof documents>;
+export type InsertDocument = InferInsertModel<typeof documents>;
+export type PipelineVersion = InferSelectModel<typeof pipelineVersions>;
+export type Pipeline = InferSelectModel<typeof pipelines>;
+export type Project = InferSelectModel<typeof projects>;
+export type ApiKey = InferSelectModel<typeof apiKeys>;
+export type Chunk = InferSelectModel<typeof chunks>;
+export type UsageLog = InferSelectModel<typeof usageLogs>;

@@ -51,8 +51,9 @@ export async function storagePut(
   data: Buffer | Uint8Array | string,
   contentType = "application/octet-stream",
   tempFilePath?: string,
+  options: { appendHash?: boolean } = { appendHash: true }
 ): Promise<{ key: string; url: string }> {
-  const key = appendHashSuffix(normalizeKey(relKey));
+  const key = options.appendHash !== false ? appendHashSuffix(normalizeKey(relKey)) : normalizeKey(relKey);
 
   if (s3Client) {
     await s3Client.send(new PutObjectCommand({
