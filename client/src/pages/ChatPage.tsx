@@ -9,14 +9,8 @@ import { Send, Loader2, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 
+import { useChat, Message } from "@/contexts/ChatContext";
 
-interface Message {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  sources?: Array<{ documentName: string; pageNo?: number; text: string }>;
-  timestamp: Date;
-}
 
 interface ChatPageProps {
   versionId: number;
@@ -24,11 +18,11 @@ interface ChatPageProps {
 
 export default function ChatPage({ versionId }: ChatPageProps) {
   const { user } = useUser();
+  const { messages, setMessages, query, setQuery, systemPrompt, setSystemPrompt } = useChat(versionId);
 
   const chatMutation = trpc.chat.query.useMutation();
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showSystemPrompt, setShowSystemPrompt] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
 
@@ -68,6 +62,7 @@ export default function ChatPage({ versionId }: ChatPageProps) {
       const response = await chatMutation.mutateAsync({
         versionId,
         message: query.trim(),
+        systemPrompt: systemPrompt.trim() || undefined,
       });
 
       const responseText = response.response;
@@ -103,10 +98,39 @@ export default function ChatPage({ versionId }: ChatPageProps) {
 
   return (
     <div className="space-y-6 flex flex-col h-full">
-      <div>
-        <h2 className="text-2xl font-bold">Chat</h2>
-        <p className="text-muted-foreground mt-1">Query your documents with AI-powered responses</p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold">Chat</h2>
+          <p className="text-muted-foreground mt-1">Query your documents with AI-powered responses</p>
+        </div>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          onClick={() => setShowSystemPrompt(!showSystemPrompt)}
+          className={showSystemPrompt ? "bg-accent" : ""}
+        >
+          {showSystemPrompt ? "Hide System Prompt" : "System Prompt"}
+        </Button>
       </div>
+
+      {showSystemPrompt && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-sm font-medium">System Prompt</CardTitle>
+            <CardDescription className="text-xs">
+              Define the AI's behavior and personality for this session.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="py-0 px-4 pb-4">
+            <textarea
+              className="w-full min-h-[80px] p-2 text-sm bg-background border rounded-md focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+              placeholder="e.g. You are a helpful technical writer. Answer questions based on the documentation provided..."
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Messages Area */}
       <ScrollArea className="flex-1 border rounded-lg p-4 bg-muted/30">

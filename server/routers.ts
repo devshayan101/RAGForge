@@ -732,6 +732,7 @@ export const appRouter = router({
       .input(z.object({
         versionId: z.number(),
         message: z.string(),
+        systemPrompt: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const version = await db.getPipelineVersionById(input.versionId);
@@ -781,16 +782,14 @@ export const appRouter = router({
 
         // Call LLM with context
         const { invokeLLM } = await import("./_core/llm");
-        const startTime = Date.now();
         
-        // Since we are in tRPC, we'll simulate streaming for now by returning the full response
-        // but structured to allow the frontend to handle it easily.
-        // True SSE would require a separate Express route.
+        const systemMessage = input.systemPrompt || "You are a helpful assistant. Answer the user's question based on the provided context. If the answer is not in the context, say so. Use markdown for formatting. IMPORTANT: Respond in the same language as the user's question.";
+
         const llmResponse = await invokeLLM({
           messages: [
             {
               role: "system",
-              content: "You are a helpful assistant. Answer the user's question based on the provided context. If the answer is not in the context, say so. Use markdown for formatting. IMPORTANT: Respond in the same language as the user's question.",
+              content: systemMessage,
             },
             {
               role: "user",

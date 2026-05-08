@@ -22,6 +22,9 @@ mindmap
         DashboardLayout
         Map Component
         UI Components (shadcn/ui)
+      Contexts
+        ThemeContext
+        ChatContext (Persistence)
     Backend (Server)
       API (tRPC)
         Projects Router

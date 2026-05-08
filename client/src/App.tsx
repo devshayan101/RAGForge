@@ -10,6 +10,7 @@ import ProjectsPage from "./pages/ProjectsPage";
 import PipelineDetailPage from "./pages/PipelineDetailPage";
 import SettingsPage from "./pages/SettingsPage";
 import UsageDashboardPage from "./pages/UsageDashboardPage";
+import { ChatProvider } from "./contexts/ChatContext";
 
 function Router() {
   return (
@@ -37,10 +38,12 @@ function App() {
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="light">
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
+        <ChatProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Router />
+          </TooltipProvider>
+        </ChatProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
