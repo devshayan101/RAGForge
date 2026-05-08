@@ -1,11 +1,12 @@
 import { eq, desc, asc } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle, MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
+import * as schema from "../drizzle/schema";
 import { InsertUser, InsertDocument, users, projects, pipelines, pipelineVersions, documents, chunks, apiKeys, usageLogs } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _pool: mysql.Pool | null = null;
-let _db: ReturnType<typeof drizzle> | null = null;
+let _db: MySql2Database<typeof schema> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
@@ -22,7 +23,7 @@ export async function getDb() {
           idleTimeout: 60000,
         });
       }
-      _db = drizzle(_pool);
+      _db = drizzle(_pool, { schema, mode: 'default' });
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;

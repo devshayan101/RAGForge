@@ -17,4 +17,6 @@ export const ENV = {
   s3Region: process.env.S3_REGION ?? "auto",
   maxFileSize: parseInt(process.env.MAX_FILE_SIZE ?? (500 * 1024 * 1024).toString()),
   redisUrl: process.env.REDIS_URL ?? "redis://localhost:6379",
+  forgeApiUrl: process.env.BUILT_IN_FORGE_API_URL ?? "",
+  forgeApiKey: process.env.BUILT_IN_FORGE_API_KEY ?? "",
 };
