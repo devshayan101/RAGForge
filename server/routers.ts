@@ -735,6 +735,7 @@ export const appRouter = router({
         systemPrompt: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
+        const startTime = Date.now();
         const version = await db.getPipelineVersionById(input.versionId);
         if (!version) {
           throw new TRPCError({ code: "NOT_FOUND" });
