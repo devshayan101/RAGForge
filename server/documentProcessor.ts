@@ -1,4 +1,5 @@
 import { invokeLLM, embedTexts } from "./_core/llm";
+import { ENV } from "./_core/env";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const pdfParse = require("pdf-parse");
@@ -123,7 +124,7 @@ async function extractTextWithOCR(
       
       // Call LLM for OCR
       const response = await invokeLLM({
-        model: "gemini-2.5-flash", // Use 2.5 Flash for speed, cost-effectiveness and availability
+        model: ENV.geminiModel, // Use configured model for OCR
         messages: [
           {
             role: "system",

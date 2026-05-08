@@ -714,6 +714,7 @@ export const appRouter = router({
             return {
               id: chunk.id,
               documentId: chunk.documentId,
+              documentName: chunk.documentName || "Unknown Document",
               text: chunk.text,
               pageNumber: chunk.pageNo || 0,
               similarity,
@@ -774,11 +775,14 @@ export const appRouter = router({
             return { ...chunk, similarity };
           })
           .sort((a, b) => b.similarity - a.similarity)
-          .slice(0, 3);
+          .slice(0, 10);
 
         // Build context from relevant chunks
         const context = relevantChunks
-          .map(chunk => `Document: ${chunk.documentId}\nPage: ${chunk.pageNo || 0}\nContent: ${chunk.text}`)
+          .map(chunk => {
+            const cleanText = chunk.text.replace(/\t/g, " ").replace(/\s+/g, " ").trim();
+            return `Source: ${chunk.documentName}\nPage: ${chunk.pageNo || 0}\nContent: ${cleanText}`;
+          })
           .join("\n\n");
 
         // Call LLM with context
@@ -806,15 +810,12 @@ export const appRouter = router({
         // Log usage
         await db.logUsage(pipeline!.id, project.id, "query", tokensUsed, responseTimeMs, "success");
 
-        // Fetch document names for sources
-        const sources = await Promise.all(relevantChunks.map(async chunk => {
-          const doc = await db.getDocumentById(chunk.documentId);
-          return {
-            documentId: chunk.documentId,
-            documentName: doc?.filename || "Unknown Document",
-            pageNumber: chunk.pageNo || 0,
-            text: chunk.text.substring(0, 200),
-          };
+        // Use document names already fetched in the join
+        const sources = relevantChunks.map(chunk => ({
+          documentId: chunk.documentId,
+          documentName: chunk.documentName || "Unknown Document",
+          pageNo: chunk.pageNo || 0,
+          text: chunk.text.substring(0, 200),
         }));
 
         return {

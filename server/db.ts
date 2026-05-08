@@ -488,15 +488,20 @@ export async function getChunksByVersion(versionId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  // Get all documents for this version
-  const docs = await db.select().from(documents).where(eq(documents.versionId, versionId));
-  
-  // Get all chunks for all documents in this version
-  const allChunks = [];
-  for (const doc of docs) {
-    const docChunks = await getChunksByDocument(doc.id);
-    allChunks.push(...docChunks);
-  }
-  
-  return allChunks;
+  const result = await db.select({
+    id: chunks.id,
+    documentId: chunks.documentId,
+    sequenceIndex: chunks.sequenceIndex,
+    text: chunks.text,
+    pageNo: chunks.pageNo,
+    embeddingJson: chunks.embeddingJson,
+    createdAt: chunks.createdAt,
+    documentName: documents.filename,
+  })
+  .from(chunks)
+  .innerJoin(documents, eq(chunks.documentId, documents.id))
+  .where(eq(documents.versionId, versionId))
+  .orderBy(asc(chunks.sequenceIndex));
+
+  return result;
 }
