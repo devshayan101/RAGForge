@@ -55,6 +55,11 @@ mindmap
     Shared
       Types & Interfaces
       Constants
+    Documentation
+      README.md
+      Mind-map (mindmap.md)
+      Working Guide (working.md)
+      TODO (todo.md)
 ```
 
 ## Key Features & Workflows

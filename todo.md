@@ -150,5 +150,5 @@
 [x] 4. Calculate and show estimated wait time for each document based on its size. Check for server response for each step and calculate the estimated time.
 [x] 5. Chat looses everything on moving to different tab.
 [x] 6. Deleting a document should also delete all its chunks and related data [also file in bucket.]
-[ ] 7. Token estimation and usage for each document.
+[] 7. Token estimation and usage for each document.
 [x] 8. feature: Uploaded document should be checked if text can be extracted or not. If not then show prompt user for confirmation to use OCR to extract text. If user confirms then use OCR to extract text and proceed.
