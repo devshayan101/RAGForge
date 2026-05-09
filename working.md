@@ -139,3 +139,10 @@ To handle large documents efficiently while staying within API limits, the embed
 - **Chunking**: Text is split with configurable `chunkSize` and `overlap` to maintain context across chunk boundaries.
 - **Vector Storage**: Embeddings (768-dimensional vectors) are stored as JSON in the database, allowing for fast cosine similarity search during retrieval.
 - **Queue Management**: All heavy processing is offloaded to a background queue (`BullMQ` with Redis) to ensure the web server remains responsive.
+
+## Authentication & User Management
+The application uses **Clerk** for user authentication and management:
+- **Frontend**: The `@clerk/react` SDK handles login, signup, and user sessions.
+- **Backend**: The `@clerk/express` middleware (specifically `clerkMiddleware`) protects tRPC routes.
+- **Syncing**: User data is synced with the local database to associate projects and usage logs with specific user identities.
+- **Security**: The system supports both session-based authentication (for the web UI) and API key-based authentication (for programmatic access via the SDK).
