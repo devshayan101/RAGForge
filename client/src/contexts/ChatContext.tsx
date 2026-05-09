@@ -19,6 +19,7 @@ interface ChatContextType {
   setMessages: (versionId: number, messages: Message[] | ((prev: Message[]) => Message[])) => void;
   setQuery: (versionId: number, query: string) => void;
   setSystemPrompt: (versionId: number, systemPrompt: string) => void;
+  clearChat: (versionId: number) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -92,7 +93,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const value = useMemo(() => ({ chats, setMessages, setQuery, setSystemPrompt }), [chats, setMessages, setQuery, setSystemPrompt]);
+  const clearChat = useCallback((versionId: number) => {
+    setChats((prev) => {
+      const newChats = { ...prev };
+      delete newChats[versionId];
+      return newChats;
+    });
+  }, []);
+
+  const value = useMemo(() => ({ chats, setMessages, setQuery, setSystemPrompt, clearChat }), [chats, setMessages, setQuery, setSystemPrompt, clearChat]);
 
   return (
     <ChatContext.Provider value={value}>
@@ -116,5 +125,6 @@ export function useChat(versionId: number) {
     setMessages: useCallback((messages: Message[] | ((prev: Message[]) => Message[])) => context.setMessages(versionId, messages), [context, versionId]),
     setQuery: useCallback((query: string) => context.setQuery(versionId, query), [context, versionId]),
     setSystemPrompt: useCallback((prompt: string) => context.setSystemPrompt(versionId, prompt), [context, versionId]),
+    clearChat: useCallback(() => context.clearChat(versionId), [context, versionId]),
   };
 }

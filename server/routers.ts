@@ -689,39 +689,17 @@ export const appRouter = router({
         const { generateEmbeddings } = await import("./documentProcessor");
         const [queryEmbedding] = await generateEmbeddings([input.query]);
 
-        // 2. Get all chunks for this version
-        const chunks = await db.getChunksByVersion(input.versionId);
+        // 2. Use DB-side vector search with diversity support
+        const relevantChunks = await db.searchChunksVector(input.versionId, queryEmbedding, input.limit);
         
-        // 3. Calculate cosine similarity
-        function cosineSimilarity(vecA: number[], vecB: number[]) {
-          let dotProduct = 0;
-          let normA = 0;
-          let normB = 0;
-          for (let i = 0; i < vecA.length; i++) {
-            dotProduct += vecA[i] * vecB[i];
-            normA += vecA[i] * vecA[i];
-            normB += vecB[i] * vecB[i];
-          }
-          return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-        }
-
-        const results = chunks
-          .map(chunk => {
-            const chunkEmbedding = JSON.parse(chunk.embeddingJson || "[]");
-            const similarity = chunkEmbedding.length > 0 
-              ? cosineSimilarity(queryEmbedding, chunkEmbedding)
-              : 0;
-            return {
-              id: chunk.id,
-              documentId: chunk.documentId,
-              documentName: chunk.documentName || "Unknown Document",
-              text: chunk.text,
-              pageNumber: chunk.pageNo || 0,
-              similarity,
-            };
-          })
-          .sort((a, b) => b.similarity - a.similarity)
-          .slice(0, input.limit);
+        const results = relevantChunks.map(chunk => ({
+          id: chunk.id,
+          documentId: chunk.documentId,
+          documentName: chunk.documentName || "Unknown Document",
+          text: chunk.text,
+          pageNumber: chunk.pageNo || 0,
+          similarity: 1 - chunk.dist, // dist is cosine distance, 1-dist is similarity
+        }));
 
         return results;
       }),
@@ -751,31 +729,8 @@ export const appRouter = router({
         const { generateEmbeddings } = await import("./documentProcessor");
         const [queryEmbedding] = await generateEmbeddings([input.message]);
 
-        // 2. Get relevant chunks for context using similarity
-        const chunks = await db.getChunksByVersion(input.versionId);
-        
-        function cosineSimilarity(vecA: number[], vecB: number[]) {
-          let dotProduct = 0;
-          let normA = 0;
-          let normB = 0;
-          for (let i = 0; i < vecA.length; i++) {
-            dotProduct += vecA[i] * vecB[i];
-            normA += vecA[i] * vecA[i];
-            normB += vecB[i] * vecB[i];
-          }
-          return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-        }
-
-        const relevantChunks = chunks
-          .map(chunk => {
-            const chunkEmbedding = JSON.parse(chunk.embeddingJson || "[]");
-            const similarity = chunkEmbedding.length > 0 
-              ? cosineSimilarity(queryEmbedding, chunkEmbedding)
-              : 0;
-            return { ...chunk, similarity };
-          })
-          .sort((a, b) => b.similarity - a.similarity)
-          .slice(0, 10);
+        // 2. Use DB-side vector search with diversity support (top 15)
+        const relevantChunks = await db.searchChunksVector(input.versionId, queryEmbedding, 15);
 
         // Build context from relevant chunks
         const context = relevantChunks

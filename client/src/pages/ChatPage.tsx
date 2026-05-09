@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Loader2, MessageCircle } from "lucide-react";
+import { Send, Loader2, MessageCircle, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Streamdown } from "streamdown";
 
@@ -18,7 +18,7 @@ interface ChatPageProps {
 
 export default function ChatPage({ versionId }: ChatPageProps) {
   const { user } = useUser();
-  const { messages, setMessages, query, setQuery, systemPrompt, setSystemPrompt } = useChat(versionId);
+  const { messages, setMessages, query, setQuery, systemPrompt, setSystemPrompt, clearChat } = useChat(versionId);
 
   const chatMutation = trpc.chat.query.useMutation();
   const [isLoading, setIsLoading] = useState(false);
@@ -103,14 +103,30 @@ export default function ChatPage({ versionId }: ChatPageProps) {
           <h2 className="text-2xl font-bold">Chat</h2>
           <p className="text-muted-foreground mt-1">Query your documents with AI-powered responses</p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => setShowSystemPrompt(!showSystemPrompt)}
-          className={showSystemPrompt ? "bg-accent" : ""}
-        >
-          {showSystemPrompt ? "Hide System Prompt" : "System Prompt"}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => {
+              if (confirm("Are you sure you want to reset the chat history?")) {
+                clearChat();
+                toast.success("Chat history cleared");
+              }
+            }}
+            className="text-destructive hover:text-destructive"
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Reset Chat
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowSystemPrompt(!showSystemPrompt)}
+            className={showSystemPrompt ? "bg-accent" : ""}
+          >
+            {showSystemPrompt ? "Hide System Prompt" : "System Prompt"}
+          </Button>
+        </div>
       </div>
 
       {showSystemPrompt && (

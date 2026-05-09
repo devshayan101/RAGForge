@@ -1,4 +1,4 @@
-import { eq, desc, asc } from "drizzle-orm";
+import { eq, desc, asc, sql } from "drizzle-orm";
 import { drizzle, MySql2Database } from "drizzle-orm/mysql2";
 import mysql from "mysql2/promise";
 import * as schema from "../drizzle/schema";
@@ -504,4 +504,32 @@ export async function getChunksByVersion(versionId: number) {
   .orderBy(asc(chunks.sequenceIndex));
 
   return result;
+}
+
+export async function searchChunksVector(versionId: number, queryEmbedding: number[], limit: number = 15) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const embeddingString = `[${queryEmbedding.join(",")}]`;
+
+  // Diversity query: top 3 per document, then top N overall
+  // Using ROW_NUMBER() to ensure we get chunks from multiple documents if possible
+  const rawSql = sql`
+    SELECT * FROM (
+      SELECT c.id, c.documentId, c.sequenceIndex, c.text, c.pageNo, c.embeddingJson, c.createdAt, 
+             d.filename as documentName,
+             VEC_COSINE_DISTANCE(c.embeddingJson, ${embeddingString}) as dist,
+             ROW_NUMBER() OVER(PARTITION BY c.documentId ORDER BY VEC_COSINE_DISTANCE(c.embeddingJson, ${embeddingString}) ASC) as rn
+      FROM chunks c
+      JOIN documents d ON c.documentId = d.id
+      WHERE d.versionId = ${versionId}
+    ) t
+    WHERE rn <= 3
+    ORDER BY dist ASC
+    LIMIT ${limit}
+  `;
+
+  const results = await db.execute(rawSql);
+  // Drizzle MySQL results are [rows, fields]
+  return (results as any)[0] as any[];
 }

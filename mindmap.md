@@ -24,7 +24,7 @@ mindmap
         UI Components (shadcn/ui)
       Contexts
         ThemeContext
-        ChatContext (Persistence)
+        ChatContext (Persistence & Reset History)
     Backend (Server)
       API (tRPC)
         Projects Router
@@ -39,7 +39,7 @@ mindmap
         Storage Service (S3/MinIO)
         Authentication (Clerk SDK)
       Core Logic
-        Vector Search (Cosine Similarity)
+        Vector Search (DB-Side with Diversity Logic)
         Ingestion Pipeline
         Usage Logging & Analytics
     Database (Drizzle/MySQL)
@@ -71,7 +71,7 @@ Users can create **Projects**, each containing multiple **Pipelines**. Pipelines
 Documents are uploaded using a robust mechanism: first attempting a direct S3/R2 upload via presigned URLs for efficiency, and falling back to a server-side proxy upload if direct access fails (e.g., due to CORS in local dev). Server-side uploads use disk-based temporary storage with automatic cleanup after S3 migration to optimize memory usage. The system tracks granular ingestion stages (**uploading**, **extracting**, **embedding**, **ready**) to provide real-time feedback. Embedding generation is processed using optimized parallel batching (concurrency of 10) with automatic retry and exponential backoff, ensuring maximum throughput while staying within API rate limits. This is handled by a background queue (`BullMQ`) with a synchronous fallback.
 
 ### 3. Vector Search & RAG Chat
-The system performs **Cosine Similarity** search over chunks to find relevant context for user queries. The **Chat** feature uses this context to provide grounded LLM responses, utilizing **Gemma 4** for frontier-level reasoning and agentic capabilities.
+The system performs **High-Performance Vector Search** directly in the database using TiDB's `VEC_COSINE_DISTANCE`. It implements a **Diversity-Aware** retrieval strategy (Top-N chunks per document) to ensure that queries "look into all files" across the knowledge base. The **Chat** feature uses this diverse context to provide grounded LLM responses, utilizing **Gemma 4** for frontier-level reasoning and agentic capabilities.
 
 ### 4. API & External Access
 Users can generate **API Keys** to interact with their RAG pipelines programmatically, with built-in usage tracking and analytics.
