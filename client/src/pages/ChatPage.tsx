@@ -73,7 +73,7 @@ export default function ChatPage({ versionId }: ChatPageProps) {
       let currentText = "";
       for (let i = 0; i < tokens.length; i++) {
         currentText += (i === 0 ? "" : " ") + tokens[i];
-        setMessages((prev) => prev.map(m => 
+        setMessages((prev) => prev.map(m =>
           m.id === assistantMessageId ? { ...m, content: currentText } : m
         ));
         // Add a small delay to simulate network latency/streaming
@@ -81,7 +81,7 @@ export default function ChatPage({ versionId }: ChatPageProps) {
       }
 
       // Add sources at the end
-      setMessages((prev) => prev.map(m => 
+      setMessages((prev) => prev.map(m =>
         m.id === assistantMessageId ? { ...m, sources } : m
       ));
 
@@ -104,13 +104,19 @@ export default function ChatPage({ versionId }: ChatPageProps) {
           <p className="text-muted-foreground mt-1">Query your documents with AI-powered responses</p>
         </div>
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => {
               if (confirm("Are you sure you want to reset the chat history?")) {
-                clearChat();
-                toast.success("Chat history cleared");
+                if (confirm("Are you sure you want to reset the chat history?")) {
+                  try {
+                    clearChat();
+                    toast.success("Chat history cleared");
+                  } catch (error) {
+                    toast.error("Failed to clear chat history");
+                  }
+                }
               }
             }}
             className="text-destructive hover:text-destructive"
@@ -118,9 +124,9 @@ export default function ChatPage({ versionId }: ChatPageProps) {
             <Trash2 className="w-4 h-4 mr-2" />
             Reset Chat
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowSystemPrompt(!showSystemPrompt)}
             className={showSystemPrompt ? "bg-accent" : ""}
           >
@@ -163,11 +169,10 @@ export default function ChatPage({ versionId }: ChatPageProps) {
                 className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-md px-4 py-2 rounded-lg ${
-                    message.role === "user"
+                  className={`max-w-md px-4 py-2 rounded-lg ${message.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-background border border-border"
-                  }`}
+                    }`}
                 >
                   {message.role === "assistant" ? (
                     <Streamdown>{message.content}</Streamdown>

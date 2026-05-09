@@ -26,14 +26,15 @@ export default function ApiKeysPage({ projectId }: ApiKeysPageProps) {
       setNewKeyName("");
       apiKeysQuery.refetch();
       
-      // Show the key in a dialog
-      toast.success("API key created. Copy it now - you won't see it again!");
-      
-      // Auto-select and copy
-      const keyText = newKey.key;
-      navigator.clipboard.writeText(keyText);
+      // Auto-copy the full key immediately
+      navigator.clipboard.writeText(newKey.key);
       setCopiedKeyId(newKey.id);
       setTimeout(() => setCopiedKeyId(null), 2000);
+
+      toast.success("API key created and copied to clipboard!");
+      
+      // Show the key in a persistent way until they close the dialog or acknowledge
+      alert(`Your new API Key is:\n\n${newKey.key}\n\nPLEASE COPY THIS NOW. You will not be able to see it again.`);
     } catch (error) {
       toast.error("Failed to create API key");
     }
@@ -61,6 +62,8 @@ export default function ApiKeysPage({ projectId }: ApiKeysPageProps) {
   };
 
   const copyKeyToClipboard = (keyPrefix: string, keyId: number) => {
+    // We don't have the full key here, so we shouldn't allow copying it as if it were the key.
+    toast.error("For security, the full key is only shown once at creation. This is just the identifier prefix.");
     navigator.clipboard.writeText(keyPrefix);
     setCopiedKeyId(keyId);
     setTimeout(() => setCopiedKeyId(null), 2000);
@@ -155,6 +158,7 @@ export default function ApiKeysPage({ projectId }: ApiKeysPageProps) {
                     variant="ghost"
                     size="sm"
                     onClick={() => copyKeyToClipboard(key.keyPrefix, key.id)}
+                    title="Copy prefix (Note: This is not the full API key)"
                   >
                     {copiedKeyId === key.id ? (
                       <Check className="w-4 h-4 text-green-600" />

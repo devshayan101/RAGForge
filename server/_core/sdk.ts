@@ -5,6 +5,7 @@ import { parse as parseCookieHeader } from "cookie";
 import type { Request } from "express";
 import { SignJWT, jwtVerify } from "jose";
 import { getAuth, clerkClient } from "@clerk/express";
+import crypto from "crypto";
 import type { User } from "../../drizzle/schema";
 import * as db from "../db";
 import { ENV } from "./env";
@@ -255,46 +256,79 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
+    // 1. Try Clerk authentication (Web-based)
     const { userId } = getAuth(req);
 
-    if (!userId) {
-      throw ForbiddenError("Unauthorized: Please login");
-    }
+    if (userId) {
+      const signedInAt = new Date().toISOString();
+      let user = await db.getUserByOpenId(userId);
 
-    const signedInAt = new Date().toISOString();
-    let user = await db.getUserByOpenId(userId);
+      // If user not in DB, sync from Clerk automatically
+      if (!user) {
+        try {
+          const clerkUser = await clerkClient.users.getUser(userId);
+          const email = clerkUser.emailAddresses[0]?.emailAddress || null;
+          const name = clerkUser.fullName || clerkUser.firstName || "User";
 
-    // If user not in DB, sync from Clerk automatically
-    if (!user) {
-      try {
-        const clerkUser = await clerkClient.users.getUser(userId);
-        const email = clerkUser.emailAddresses[0]?.emailAddress || null;
-        const name = clerkUser.fullName || clerkUser.firstName || "User";
+          await db.upsertUser({
+            openId: userId,
+            name: name,
+            email: email,
+            loginMethod: "clerk",
+            lastSignedIn: signedInAt,
+          });
+          user = await db.getUserByOpenId(userId);
+        } catch (error) {
+          console.error("[Auth] Failed to sync user from Clerk:", error);
+          throw ForbiddenError("Failed to sync user info");
+        }
+      }
 
+      if (user) {
         await db.upsertUser({
-          openId: userId,
-          name: name,
-          email: email,
-          loginMethod: "clerk",
+          openId: user.openId,
           lastSignedIn: signedInAt,
         });
-        user = await db.getUserByOpenId(userId);
-      } catch (error) {
-        console.error("[Auth] Failed to sync user from Clerk:", error);
-        throw ForbiddenError("Failed to sync user info");
+        return user;
       }
     }
 
-    if (!user) {
-      throw ForbiddenError("User not found");
+    // 2. Try API Key authentication (Programmatic)
+    const apiKey = req.headers["x-api-key"];
+    if (typeof apiKey === "string" && apiKey.startsWith("rg_")) {
+      const hashedKey = crypto.createHash("sha256").update(apiKey).digest("hex");
+      const apiKeyRecord = await db.getApiKeyByHash(hashedKey);
+
+      if (apiKeyRecord) {
+        if (apiKeyRecord.revokedAt) {
+           console.log(`[Auth] API Key ${apiKeyRecord.keyPrefix} is revoked`);
+           throw ForbiddenError("API Key has been revoked");
+        }
+
+        const project = await db.getProjectById(apiKeyRecord.projectId);
+        if (project) {
+          const db_ = await db.getDb();
+          if (db_) {
+            const { users } = await import("../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            const result = await db_.select().from(users).where(eq(users.id, project.userId)).limit(1);
+            if (result.length > 0) {
+              console.log(`[Auth] Authenticated via API Key: ${apiKeyRecord.keyPrefix} for user: ${result[0].openId}`);
+              return result[0];
+            } else {
+              console.warn(`[Auth] User with ID ${project.userId} not found for project ${project.id}`);
+            }
+          }
+        } else {
+          console.warn(`[Auth] Project ${apiKeyRecord.projectId} not found for API Key`);
+        }
+      } else {
+        console.warn(`[Auth] No API Key record found for hashed key starting with ${hashedKey.substring(0, 8)}...`);
+      }
+      throw ForbiddenError("Invalid or revoked API Key");
     }
 
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-    });
-
-    return user;
+    throw ForbiddenError("Unauthorized: Please login or provide a valid API Key");
   }
 }
 
