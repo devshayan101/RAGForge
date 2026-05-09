@@ -109,17 +109,14 @@ export default function ChatPage({ versionId }: ChatPageProps) {
             size="sm"
             onClick={() => {
               if (confirm("Are you sure you want to reset the chat history?")) {
-                if (confirm("Are you sure you want to reset the chat history?")) {
-                  try {
-                    clearChat();
-                    toast.success("Chat history cleared");
-                  } catch (error) {
-                    toast.error("Failed to clear chat history");
-                  }
+                try {
+                  clearChat();
+                  toast.success("Chat history cleared");
+                } catch (error) {
+                  toast.error("Failed to clear chat history");
                 }
               }
-            }}
-            className="text-destructive hover:text-destructive"
+            }} className="text-destructive hover:text-destructive"
           >
             <Trash2 className="w-4 h-4 mr-2" />
             Reset Chat
@@ -170,8 +167,8 @@ export default function ChatPage({ versionId }: ChatPageProps) {
               >
                 <div
                   className={`max-w-md px-4 py-2 rounded-lg ${message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background border border-border"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-background border border-border"
                     }`}
                 >
                   {message.role === "assistant" ? (

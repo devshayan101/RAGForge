@@ -307,17 +307,12 @@ class SDKServer {
 
         const project = await db.getProjectById(apiKeyRecord.projectId);
         if (project) {
-          const db_ = await db.getDb();
-          if (db_) {
-            const { users } = await import("../../drizzle/schema");
-            const { eq } = await import("drizzle-orm");
-            const result = await db_.select().from(users).where(eq(users.id, project.userId)).limit(1);
-            if (result.length > 0) {
-              console.log(`[Auth] Authenticated via API Key: ${apiKeyRecord.keyPrefix} for user: ${result[0].openId}`);
-              return result[0];
-            } else {
-              console.warn(`[Auth] User with ID ${project.userId} not found for project ${project.id}`);
-            }
+          const user = await db.getUserById(project.userId);
+          if (user) {
+            console.log(`[Auth] Authenticated via API Key: ${apiKeyRecord.keyPrefix} for user: ${user.openId}`);
+            return user;
+          } else {
+            console.warn(`[Auth] User with ID ${project.userId} not found for project ${project.id}`);
           }
         } else {
           console.warn(`[Auth] Project ${apiKeyRecord.projectId} not found for API Key`);
