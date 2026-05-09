@@ -77,8 +77,13 @@ export async function procesDocumentSync(
     
     await db.createChunks(chunkData);
     
-    // 4. Update document status and chunk count
+    // 4. Estimate token usage (~4 chars per token is a widely-used heuristic)
+    const totalChars = chunks.reduce((sum, text) => sum + text.length, 0);
+    const estimatedTokens = Math.ceil(totalChars / 4);
+    
+    // 5. Update document status, chunk count, and token count
     await db.updateDocumentChunkCount(documentId, chunks.length);
+    await db.updateDocumentTokenCount(documentId, estimatedTokens);
     await db.updateDocumentStatus(documentId, "ready");
     
     console.log(`[SyncProcessor] Completed document ${documentId}: ${chunks.length} chunks`);

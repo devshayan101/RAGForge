@@ -293,6 +293,12 @@ export async function updateDocumentChunkCount(documentId: number, chunkCount: n
   return db.update(documents).set({ chunkCount }).where(eq(documents.id, documentId));
 }
 
+export async function updateDocumentTokenCount(documentId: number, tokenCount: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return db.update(documents).set({ tokenCount }).where(eq(documents.id, documentId));
+}
+
 export async function updateDocumentProgress(documentId: number, progress: number) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");

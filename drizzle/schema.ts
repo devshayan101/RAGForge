@@ -38,6 +38,7 @@ export const documents = mysqlTable("documents", {
 	fileType: varchar({ length: 50 }).notNull(),
 	contentSummary: text(),
 	chunkCount: int().default(0).notNull(),
+	tokenCount: int().default(0).notNull(),
 	ingestionStatus: mysqlEnum(['uploading','pending','extracting','embedding','ready','failed','ocr_required']).default('uploading').notNull(),
 	progress: int().default(0).notNull(),
 	ingestionError: text(),

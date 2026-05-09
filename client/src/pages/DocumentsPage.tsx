@@ -306,6 +306,9 @@ export default function DocumentsPage({ versionId }: DocumentsPageProps) {
                         <p className="font-medium truncate">{doc.filename}</p>
                         <p className="text-sm text-muted-foreground">
                           {(doc.fileSize / 1024 / 1024).toFixed(2)} MB • {doc.chunkCount} chunks
+                          {doc.tokenCount > 0 && (
+                            <> • {doc.tokenCount >= 1000 ? `${(doc.tokenCount / 1000).toFixed(1)}K` : doc.tokenCount} tokens (est.)</>
+                          )}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
