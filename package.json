@@ -10,7 +10,9 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "redis": "powershell -Command \"Start-Process -FilePath 'C:\\Program Files\\Memurai\\memurai.exe' -ArgumentList 'C:\\Program Files\\Memurai\\memurai.conf' -WindowStyle Hidden\"",
+    "redis:stop": "powershell -Command \"Stop-Process -Name memurai -Force -ErrorAction SilentlyContinue\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
@@ -50,7 +52,7 @@
     "@trpc/server": "^11.6.0",
     "@types/multer": "^2.1.0",
     "axios": "^1.12.0",
-    "bullmq": "^5.76.5",
+    "bullmq": "^5.76.8",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",

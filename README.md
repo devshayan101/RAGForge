@@ -21,6 +21,7 @@ RagForge is a high-performance, developer-centric platform for building, version
 - **Smart Storage**: Integrated with S3/Cloudflare R2 for scalable file management.
 - **Intelligent OCR**: Automatically detects scanned documents with low text density and offers LLM-powered OCR.
 - **Real-time Feedback**: Detailed progress tracking with granular states: `uploading` ➔ `extracting` ➔ `embedding` ➔ `ready`.
+- **Asynchronous Processing**: Heavy ingestion tasks are offloaded to **BullMQ** background workers, ensuring the UI remains responsive even during large batch uploads.
 - **Wait-Time Estimation**: Smart calculation of processing time based on document size and server load.
 
 ### 🧠 High-Performance RAG Engine
@@ -39,11 +40,11 @@ RagForge is a high-performance, developer-centric platform for building, version
 ## ⚙️ How It Works
 
 ### The RAG Lifecycle
-1.  **Ingestion**: When a document is uploaded, it is stored in S3/R2. A background worker (powered by **BullMQ**) is triggered.
-2.  **Extraction & Chunking**: The system extracts text (using OCR if necessary) and breaks it into overlapping chunks based on your pipeline's configuration.
-3.  **Vectorization**: Chunks are sent to the **Gemini Embedding API** to generate high-dimensional vectors representing their semantic meaning.
-4.  **Retrieval**: When you ask a question, your query is embedded. The system performs a similarity search across all chunks in the active pipeline version.
-5.  **Generation**: The top context chunks are injected into a prompt for **Gemma 4 / Gemini**, which generates a grounded response with citations.
+1.  **Ingestion & Background Processing**: When a document is uploaded, it is stored in S3/R2. A background worker (powered by **BullMQ** and **Redis**) is immediately triggered. This ensures the main web server remains responsive even while processing massive documents.
+2.  **Extraction & Chunking**: The worker extracts text (using high-performance PDF/DOCX parsers and LLM-powered OCR if necessary) and breaks it into overlapping chunks based on your pipeline's configuration.
+3.  **Vectorization**: Chunks are processed in parallel batches (10x concurrency) and sent to the **Gemini Embedding API** to generate high-dimensional vectors.
+4.  **Retrieval**: When you ask a question, your query is embedded. The system performs a similarity search across all chunks in the active pipeline version using native database-side vector operations.
+5.  **Generation**: The top context chunks are injected into a prompt for **Gemma 4 / Gemini**, which generates a grounded response with precise source citations.
 
 ---
 

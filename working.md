@@ -138,7 +138,7 @@ To handle large documents efficiently while staying within API limits, the embed
 ### 4. Storage & Persistence
 - **Chunking**: Text is split with configurable `chunkSize` and `overlap` to maintain context across chunk boundaries.
 - **Vector Storage**: Embeddings (768-dimensional vectors) are stored as JSON in the database, allowing for fast cosine similarity search during retrieval.
-- **Queue Management**: All heavy processing is offloaded to a background queue (`BullMQ` with Redis) to ensure the web server remains responsive.
+- **Background Queue Management**: All heavy processing tasks (text extraction, OCR, chunking, and embedding) are offloaded to a background worker powered by **BullMQ** and **Redis**. This decouples the time-consuming ingestion process from the HTTP request/response cycle, ensuring the web interface remains lightning-fast and responsive while the worker processes documents in the background. The worker supports automatic retries, exponential backoff, and progress reporting.
 
 ## Authentication & User Management
 The application uses **Clerk** for user authentication and management:

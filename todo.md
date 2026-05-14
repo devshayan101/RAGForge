@@ -124,7 +124,8 @@
 [x] 6. Deleting a document should also delete all its chunks and related data [also file in bucket.]
 [x] 7. Token estimation and usage for each document.
 [x] 8. feature: Uploaded document should be checked if text can be extracted or not. OCR fallback implemented.
-[ ] 9. User Dashboard: Token consumptions should be shown and can be reset monthly.
+[ ] 9. User Dashboard: Token consumptions based on api keys [monthly,yearly, or alltime]. [tokens on Document uploads, ocr extraction, embedding generation ; tokens on chat query response generation.]
 [ ] 10. Add rate limiting to API endpoints.
 [ ] 11. Add more security features.
 [ ] 12. Add email notifications to user about the status of document ingestion.
+[ ] 13. Document file rename feature [should update filename in s3 / r2 cloud and database.]. 

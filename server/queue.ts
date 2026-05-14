@@ -171,8 +171,4 @@ if (ingestionWorker) {
   });
 }
 
-// Log queue status
-if (!isRedisAvailable) {
-  console.warn("[Queue] Redis is not available. Document ingestion queue will be disabled.");
-  console.warn("[Queue] To enable async document processing, set up Redis at REDIS_URL environment variable.");
-}
+
